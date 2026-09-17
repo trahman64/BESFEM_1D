@@ -52,8 +52,6 @@ C_prev(fec->GetTrueVSize()),C_new(fec->GetTrueVSize()){
     M_mat = &M->SpMat();
     K_mat = &K->SpMat();
 
-// 	K_mat->Print(std::cout);
-
     C.GetTrueDofs(C_prev);
 }
 
@@ -69,113 +67,62 @@ void Diffusion::Stepping(double dt,double rxn){
     reaction_vector(0) = 0.0;
     
     //Electrode
-    reaction_vector(1) = -1.0 * (a_rxn * rxn * t_minus);
+    reaction_vector(1) = a_rxn * rxn * t_minus * eps_s;
 
     mfem::PWConstCoefficient reaction(reaction_vector);
     mfem::LinearForm R_current(fespace);
     R_current.AddDomainIntegrator(new mfem::DomainLFIntegrator(reaction));
-
+    R_current.Assemble();
 
     
-    double electrode_length = 60e-5 ;    //0.5;
-    double f_in = a_rxn * rxn * electrode_length;
-    f_in *= 4500;
+    double electrode_length = 60e-5;    //0.5;
+    double f_in = a_rxn * rxn * t_minus * eps_s * electrode_length;
+
+    mfem::Array<int> ess_bdr(mesh->bdr_attributes.Max());
+    ess_bdr = 0;
+    ess_bdr[0] = 1;
+    ess_bdr[1] = 1;
+
+    mfem::Array<int> ess_tdof_list;
+    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+
+    mfem::Vector boundary_values(mesh->bdr_attributes.Max());
+    boundary_values(0) = f_in;
+    boundary_values(1) = 0.0;
+
+    mfem::PWConstCoefficient boundary_coeff(boundary_values);
+    C.ProjectBdrCoefficient(boundary_coeff,ess_bdr);
+    C.GetTrueDofs(C_prev);
+
+    M_mat->Mult(C_prev, MC);
+    K_mat->Mult(C_prev, KC);
+    rhs = R_current;
+    rhs -= KC;
+    rhs *=dt;
+    rhs += MC;
+
+    mfem::SparseMatrix A;
+    mfem::Vector X;
+    mfem::Vector B;
+
+    M->FormLinearSystem(ess_tdof_list,C,rhs,A,X,B);
     
-    std::cout << f_in << " " << rxn << std::endl;
-
-	mfem::ConstantCoefficient nbcCoef(f_in);
-	mfem::ConstantCoefficient one(1.0);	
-	mfem::ProductCoefficient m_nbcCoef(one, nbcCoef);	
-	
-	mfem::Array<int> boundary_dofs;					// nature boundary	
-	// Neumann BC on the west boundary. CnE
-	mfem::Array<int> nbc_w_bdr(mesh->bdr_attributes.Max());
-	nbc_w_bdr = 0; nbc_w_bdr[0] = 1;	
-	
-	R_current.AddDomainIntegrator(new mfem::BoundaryLFIntegrator(m_nbcCoef), nbc_w_bdr);	
-	
-	R_current.Assemble();
-
-	mfem::Vector X, rhs;
-	mfem::SparseMatrix A;
-	K->FormLinearSystem(boundary_dofs, C, R_current, A, X, rhs);
-	rhs *= dt;	
-	
-	
-	mfem::SparseMatrix *TmatR, *TmatL;
-	// Crank-Nicolson matrices
-	TmatR = Add(1.0, *M_mat, -0.5*dt, *K_mat);		
-	TmatL = Add(1.0, *M_mat,  0.5*dt, *K_mat);		
-			
-	
-	
-	TmatR->Mult(C_prev, X);
-	X += rhs;
-	
-	
-	// solver
-    mfem::GSSmoother M_prec(*TmatL);
+    mfem::GSSmoother M_prec(A);
     mfem::CGSolver solver;
 
-    solver.SetOperator(*TmatL);
+    solver.SetOperator(A);
     solver.SetPreconditioner(M_prec);
     solver.SetRelTol(1e-12);
     solver.SetAbsTol(0.0);
     solver.SetMaxIter(500);
-    solver.SetPrintLevel(0);		
-	
-	// time stepping
-	solver.Mult(X, C_prev) ;
-	
-	// recover
-	C.SetFromTrueDofs(C_prev);  
-	
-	
+    solver.SetPrintLevel(0);
 
-//     mfem::Array<int> ess_bdr(mesh->bdr_attributes.Max());
-//     ess_bdr = 0;
-//     ess_bdr[0] = 1;
-//     ess_bdr[1] = 1;
-// 
-//     mfem::Array<int> ess_tdof_list;
-//     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-// 
-//     mfem::Vector boundary_values(mesh->bdr_attributes.Max());
-//     boundary_values(0) = f_in;
-//     boundary_values(1) = 0.0;
-// 
-//     mfem::PWConstCoefficient boundary_coeff(boundary_values);
-//     C.ProjectBdrCoefficient(boundary_coeff,ess_bdr);
-//     C.GetTrueDofs(C_prev);
 
-//     M_mat->Mult(C_prev, MC);
-//     K_mat->Mult(C_prev, KC);
-//     rhs = R_current;
-//     rhs -= KC;
-//     rhs *=dt;
-//     rhs += MC;
-// 
-//     mfem::SparseMatrix A;
-//     mfem::Vector X;
-//     mfem::Vector B;
-// 
-//     M->FormLinearSystem(ess_tdof_list,C,rhs,A,X,B);
     
-//     mfem::GSSmoother M_prec(A);
-//     mfem::CGSolver solver;
-// 
-//     solver.SetOperator(A);
-//     solver.SetPreconditioner(M_prec);
-//     solver.SetRelTol(1e-12);
-//     solver.SetAbsTol(0.0);
-//     solver.SetMaxIter(500);
-//     solver.SetPrintLevel(0);
     
-//     solver.Mult(B,X);
+    solver.Mult(B,X);
         
-//     C.GetTrueDofs(C_prev);
-
-
+    C.GetTrueDofs(C_prev);
 }
 void Diffusion::Save(){
     mesh->Save("diffusion_mesh.mesh");
@@ -185,7 +132,5 @@ void Diffusion::Save(){
 mfem::GridFunction& Diffusion::GetConcentration(){
     return C;
 }
-
-
     
     
