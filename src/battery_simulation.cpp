@@ -1,7 +1,9 @@
 #include "mfem.hpp"
-#include "../includes/diffusion.hpp"
-#include "../includes/potential.hpp"
-#include "../includes/radial_diffusion.hpp"
+// #include "../includes/diffusion.hpp"
+// #include "../includes/potential.hpp"
+// #include "../includes/radial_diffusion.hpp"
+#include "../includes/spherical_diffusion.hpp"
+#include "../includes/linear_diffusion.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -38,13 +40,16 @@ int main(){
     mfem::FiniteElementSpace fespace(&mesh, &fec);
 
     std::cout << "Creating diffusion" << std::endl;
-    Diffusion salt_electrolyte(&mesh, &fespace);
+//     Diffusion salt_electrolyte(&mesh, &fespace);
+	LinearDiffusion salt_electrolyte(&mesh, &fespace, 0.301, 0.25e-5, 2.409e3, \
+		0.7619, 1.521, 0.001, 1e-2);
 
     std::cout << "Creating radial" << std::endl;
-    Radial_Diffusion radial_diffusion(&mesh, &fespace);
+//     Radial_Diffusion radial_diffusion(&mesh, &fespace);
+    SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);    
 
-    std::cout << "Creating potential" << std::endl;
-    Potential poission(&mesh, &fespace,&salt_electrolyte);
+//     std::cout << "Creating potential" << std::endl;
+//     Potential poission(&mesh, &fespace,&salt_electrolyte);
     
     
 
@@ -75,16 +80,22 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
     double dt = 1e-4;
-    int num_steps = 1;
+    int num_steps = 100;
     double rxn = 0.02e-6;
+    double frx_p = 0.0;
 
     for (int i = 0; i <num_steps; i++){
         std::cout << "Step " << i << ": diffusion" << std::endl;
-	  
+		salt_electrolyte.Stepping(rxn);
 				     
-        salt_electrolyte.Stepping(dt,rxn);
+//         salt_electrolyte.Stepping(dt,rxn);
                
 //         std::cout << "Step " << i << ": radial_diffusion" << std::endl;
+//         particle_1.Stepping(rxn);
+        
+//         frx_p = particle_1.GetMeanConcentration();
+        
+//         std::cout << i << "--" << frx_p << std::endl;
 //         radial_diffusion.Stepping(dt,rxn);
 // 
 //         std::cout << "11. Radial finished" << std::endl;
@@ -92,7 +103,7 @@ int main(){
 //         poission.Solve(rxn);
 // 
 //         double x_surface = radial_diffusion.GetSurfaceConc();
-        const mfem::GridFunction &phi_s = poission.GetSolidPotential();
+//         const mfem::GridFunction &phi_s = poission.GetSolidPotential();
 //         const mfem::GridFunction &phi_e = poission.GetLiquidPotential();
 // 
 //         double phi_s_value = phi_s[phi_s.Size() - 1];
@@ -108,20 +119,24 @@ int main(){
 //             << "  rxn: " << rxn
 //             << std::endl;
     }
-    salt_electrolyte.Save();
+    salt_electrolyte.SaveConc();
+    double MnConc = salt_electrolyte.GetMeanConcentration();
+    std::cout << "MC = " << MnConc << std::endl;
+    
+// 	particle_1.SaveConc();
     
 
-	C = salt_electrolyte.GetConcentration();  
+// 	C = salt_electrolyte.GetConcentration();  
 // 	C.Print();  
 
-	integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
-	volume     = mass_lf.Sum();   // ∫ 1 dx = domain volume
-	
-	mean = integral_u / volume; 
-	std::cout << mean << std::endl;
-//     radial_diffusion.Save();
+// 	integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
+// 	volume     = mass_lf.Sum();   // ∫ 1 dx = domain volume
+// 	
+// 	mean = integral_u / volume; 
+// 	std::cout << mean << std::endl;
+// //     radial_diffusion.Save();
 //     poission.Save();
-    
+//     
     
 
     return 0;
