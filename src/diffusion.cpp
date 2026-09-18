@@ -38,21 +38,11 @@ C_prev(fec->GetTrueVSize()),C_new(fec->GetTrueVSize()){
     K->Assemble();
     K->Finalize();
 
-    
 
-    
-    // mfem::ConstantCoefficient rxn_coeff(a * t_minus * rxn * 0.5);
-    // mfem::Array<int> bdr(mesh->bdr_attributes.Max());
-    // bdr[0]=1;
-    // R->AddBoundaryIntegrator(new mfem::BoundaryLFIntegrator(rxn_coeff),bdr);
-
-    
     //In matrix
     C = 0.001;
     M_mat = &M->SpMat();
     K_mat = &K->SpMat();
-
-// 	K_mat->Print(std::cout);
 
     C.GetTrueDofs(C_prev);
 }
@@ -75,29 +65,17 @@ void Diffusion::Stepping(double dt,double rxn){
     mfem::LinearForm R_current(fespace);
     R_current.AddDomainIntegrator(new mfem::DomainLFIntegrator(reaction));
 
-
-    
     double electrode_length = 60e-4 ;    //0.5;
-    double f_in = a_rxn * rxn * electrode_length *eps_s;
-//     f_in *= 4500;
-    
-    std::cout << f_in << " " << rxn << std::endl;
+    double f_in = a_rxn * rxn * t_minus * electrode_length; 
 
-// 	mfem::ConstantCoefficient one(1.0);
-
+ 
 	mfem::ConstantCoefficient nbcCoef(f_in);
-// 	mfem::ConstantCoefficient Dife(0.25e-5);
-// 	mfem::ProductCoefficient m_nbcCoef(Dife, nbcCoef);	
-	
+
 	mfem::Array<int> boundary_dofs;					// nature boundary	
 	// Neumann BC on the west boundary. CnE
 	mfem::Array<int> nbc_w_bdr(mesh->bdr_attributes.Max());
 	nbc_w_bdr = 0; nbc_w_bdr[0] = 1;	
-	
-// 	R_current.AddBoundaryIntegrator(new mfem::BoundaryLFIntegrator(m_nbcCoef), nbc_w_bdr);	
-// 	R_current.AddDomainIntegrator(new mfem::BoundaryLFIntegrator(nbcCoef), nbc_w_bdr);	
 	R_current.AddBoundaryIntegrator(new mfem::BoundaryLFIntegrator(nbcCoef), nbc_w_bdr);	
-	
 	R_current.Assemble();
 
 	mfem::Vector X, rhs;
@@ -134,52 +112,6 @@ void Diffusion::Stepping(double dt,double rxn){
 	// recover
 	C.SetFromTrueDofs(C_prev);  
 	
-	
-
-//     mfem::Array<int> ess_bdr(mesh->bdr_attributes.Max());
-//     ess_bdr = 0;
-//     ess_bdr[0] = 1;
-//     ess_bdr[1] = 1;
-// 
-//     mfem::Array<int> ess_tdof_list;
-//     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
-// 
-//     mfem::Vector boundary_values(mesh->bdr_attributes.Max());
-//     boundary_values(0) = f_in;
-//     boundary_values(1) = 0.0;
-// 
-//     mfem::PWConstCoefficient boundary_coeff(boundary_values);
-//     C.ProjectBdrCoefficient(boundary_coeff,ess_bdr);
-//     C.GetTrueDofs(C_prev);
-
-//     M_mat->Mult(C_prev, MC);
-//     K_mat->Mult(C_prev, KC);
-//     rhs = R_current;
-//     rhs -= KC;
-//     rhs *=dt;
-//     rhs += MC;
-// 
-//     mfem::SparseMatrix A;
-//     mfem::Vector X;
-//     mfem::Vector B;
-// 
-//     M->FormLinearSystem(ess_tdof_list,C,rhs,A,X,B);
-    
-//     mfem::GSSmoother M_prec(A);
-//     mfem::CGSolver solver;
-// 
-//     solver.SetOperator(A);
-//     solver.SetPreconditioner(M_prec);
-//     solver.SetRelTol(1e-12);
-//     solver.SetAbsTol(0.0);
-//     solver.SetMaxIter(500);
-//     solver.SetPrintLevel(0);
-    
-//     solver.Mult(B,X);
-        
-//     C.GetTrueDofs(C_prev);
-
-
 }
 void Diffusion::Save(){
     mesh->Save("diffusion_mesh.mesh");

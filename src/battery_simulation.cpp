@@ -47,17 +47,43 @@ int main(){
     Potential poission(&mesh, &fespace,&salt_electrolyte);
     
     
+
+    mfem::Vector epsilon_vector(mesh.attributes.Max());
+    epsilon_vector(0) = 1.0;
+    epsilon_vector(1) = 0.301;
+    mfem::PWConstCoefficient epsilon(epsilon_vector);
+
     
+	mfem::GridFunction C(&fespace);
+	mfem::LinearForm mass_lf(&fespace);
+	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
+	mass_lf.Assemble();	
+	
+
+
+	C = salt_electrolyte.GetConcentration();  
+// 	C.Print();  
+
+	double integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
+	double volume     = mass_lf.Sum();   // ∫ 1 dx = domain volume
+	
+	double mean = integral_u / volume; 
+	std::cout << mean << std::endl;
+	
+	
+	    
     std::cout << "Starting loop" << std::endl;
 
     double dt = 1e-4;
-    int num_steps = 10000;
+    int num_steps = 1;
     double rxn = 0.02e-6;
 
     for (int i = 0; i <num_steps; i++){
         std::cout << "Step " << i << ": diffusion" << std::endl;
+	  
+				     
         salt_electrolyte.Stepping(dt,rxn);
-        
+               
 //         std::cout << "Step " << i << ": radial_diffusion" << std::endl;
 //         radial_diffusion.Stepping(dt,rxn);
 // 
@@ -66,7 +92,7 @@ int main(){
 //         poission.Solve(rxn);
 // 
 //         double x_surface = radial_diffusion.GetSurfaceConc();
-//         const mfem::GridFunction &phi_s = poission.GetSolidPotential();
+        const mfem::GridFunction &phi_s = poission.GetSolidPotential();
 //         const mfem::GridFunction &phi_e = poission.GetLiquidPotential();
 // 
 //         double phi_s_value = phi_s[phi_s.Size() - 1];
@@ -84,44 +110,19 @@ int main(){
     }
     salt_electrolyte.Save();
     
-    
-    mfem::GridFunction C(&fespace);
-    C = salt_electrolyte.GetConcentration();
-    std::cout << 0.25e-5*(C[1]-C[0])/1e-4 << " " << C[0] << " " << C[1] << std::endl;
-    
-    mfem::Vector epsilon_vector(mesh.attributes.Max());
-    epsilon_vector(0) = 1.0;
-    epsilon_vector(1) = 0.301;
-    mfem::PWConstCoefficient epsilon(epsilon_vector);
-    
-// 	mfem::ConstantCoefficient one(1.0);
-	mfem::LinearForm mass_lf(&fespace);
-	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
-	mass_lf.Assemble();
+
+	C = salt_electrolyte.GetConcentration();  
+// 	C.Print();  
+
+	integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
+	volume     = mass_lf.Sum();   // ∫ 1 dx = domain volume
 	
-	double integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
-	double volume      = mass_lf.Sum();   // ∫ 1 dx = domain volume
-	
-	double mean = integral_u / volume; 
-   std::cout << mean << std::endl;
+	mean = integral_u / volume; 
+	std::cout << mean << std::endl;
 //     radial_diffusion.Save();
 //     poission.Save();
     
     
-mfem::ConstantCoefficient one(1.0);
-mfem::LinearForm mass_lf(fespace);
-mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(one));
-mass_lf.Assemble();
-
-double total_mass_before = mass_lf(C);
-// ... do one Stepping() call ...
-double total_mass_after = mass_lf(C);
-
-double dmass = total_mass_after - total_mass_before;
-double expected = f_in * dt /* * boundary_measure if f_in isn't already integrated */
-                   + (reaction contribution) * dt;
-
-std::cout << "dmass = " << dmass << ", expected ≈ " << expected << std::endl;    
 
     return 0;
 }

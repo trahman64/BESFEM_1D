@@ -45,7 +45,7 @@ void Radial_Diffusion::Stepping(double dt, double rxn){
     std::cout << "Radial 1" << std::endl;
     const double d = 1.5e-10;
     const double rho = 0.0312;
-    const double particle_radius = 1.0;
+    const double particle_radius = 4.0e-4;
     double surface_flux = d * particle_radius  * particle_radius* rxn / rho;
     std::cout << "Radial surface_flux" << std::endl;
     
@@ -60,13 +60,13 @@ void Radial_Diffusion::Stepping(double dt, double rxn){
     R_current.Assemble();
     std::cout << "Radial Assemble" << std::endl;
 
-    M_mat->Mult(C,MC);
-    K_mat->Mult(C,KC);
-
-    rhs = R_current;
-    rhs -= KC;
-    rhs *= dt;
-    rhs += MC;
+//     M_mat->Mult(C,MC);
+//     K_mat->Mult(C,KC);
+// 
+//     rhs = R_current;
+//     rhs -= KC;
+//     rhs *= dt;
+//     rhs += MC;
     std::cout << "Radial rhs" <<std::endl;
     
     mfem::GSSmoother M_prec(*M_mat);

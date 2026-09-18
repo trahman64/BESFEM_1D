@@ -21,12 +21,14 @@ void Potential::SolveSolid(double rxn){
     const double tau_s = 1.324;
     const double eps_s_sep = 1e-4;
     const double tau_s_sep = 1e4;
-    double kappa_s_eff = kappa_s *eps_s /(tau_s * tau_s);
+    double kappa_s_eff = kappa_s * eps_s / (tau_s * tau_s) * eps_s;
     double kappa_s_sep = kappa_s * eps_s_sep / (tau_s_sep * tau_s_sep);
+    
+    double BvP = 0.0;
     
     Array<int> ess_bdr(mesh->bdr_attributes.Max());
     ess_bdr = 0;
-    ess_bdr[0] = 1;
+    ess_bdr[1] = 1;
     Array<int> ess_tdof_list;
     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
@@ -41,7 +43,8 @@ void Potential::SolveSolid(double rxn){
 
     source_values = 0.0;
     source_values(0) = 0.0;  
-    source_values(1) = a_rxn * rxn * F * eps_s;  
+//     source_values(1) = a_rxn * rxn * F * eps_s; 
+    source_values(1) = a_rxn * rxn * F;  
 
     PWConstCoefficient source(source_values);
 
@@ -57,6 +60,9 @@ void Potential::SolveSolid(double rxn){
     SparseMatrix A;
     Vector X;
     Vector B;
+    
+    mfem::ConstantCoefficient dbc_coeff(BvP);
+	phi_s.ProjectBdrCoefficient(dbc_coeff, ess_bdr);
 
     a.FormLinearSystem(ess_tdof_list,phi_s,b,A,X,B);
     GSSmoother M(A);
