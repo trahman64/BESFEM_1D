@@ -77,22 +77,26 @@ void Diffusion::Stepping(double dt,double rxn){
 
 
     
-    double electrode_length = 60e-5 ;    //0.5;
-    double f_in = a_rxn * rxn * electrode_length;
-    f_in *= 4500;
+    double electrode_length = 60e-4 ;    //0.5;
+    double f_in = a_rxn * rxn * electrode_length *eps_s;
+//     f_in *= 4500;
     
     std::cout << f_in << " " << rxn << std::endl;
 
+// 	mfem::ConstantCoefficient one(1.0);
+
 	mfem::ConstantCoefficient nbcCoef(f_in);
-	mfem::ConstantCoefficient one(1.0);	
-	mfem::ProductCoefficient m_nbcCoef(one, nbcCoef);	
+// 	mfem::ConstantCoefficient Dife(0.25e-5);
+// 	mfem::ProductCoefficient m_nbcCoef(Dife, nbcCoef);	
 	
 	mfem::Array<int> boundary_dofs;					// nature boundary	
 	// Neumann BC on the west boundary. CnE
 	mfem::Array<int> nbc_w_bdr(mesh->bdr_attributes.Max());
 	nbc_w_bdr = 0; nbc_w_bdr[0] = 1;	
 	
-	R_current.AddDomainIntegrator(new mfem::BoundaryLFIntegrator(m_nbcCoef), nbc_w_bdr);	
+// 	R_current.AddBoundaryIntegrator(new mfem::BoundaryLFIntegrator(m_nbcCoef), nbc_w_bdr);	
+// 	R_current.AddDomainIntegrator(new mfem::BoundaryLFIntegrator(nbcCoef), nbc_w_bdr);	
+	R_current.AddBoundaryIntegrator(new mfem::BoundaryLFIntegrator(nbcCoef), nbc_w_bdr);	
 	
 	R_current.Assemble();
 

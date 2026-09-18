@@ -30,7 +30,7 @@ double butlerVolmer(double phi_s, double phi_e, double x){
 
 
 int main(){
-    mfem::Mesh mesh("../inputs/Mesh_80_1D01.mesh");
+    mfem::Mesh mesh("../inputs/Mesh_80_1D02.mesh");
     int dim = mesh.Dimension();
     int order = 1;
 
@@ -87,14 +87,16 @@ int main(){
     
     mfem::GridFunction C(&fespace);
     C = salt_electrolyte.GetConcentration();
-    std::cout << (C[1]-C[0])/1e-5 << " " << C[0] << " " << C[1] << std::endl;
+    std::cout << 0.25e-5*(C[1]-C[0])/1e-4 << " " << C[0] << " " << C[1] << std::endl;
     
-    mfem::Vector epsilon_vector(mesh->attributes.Max());
+    mfem::Vector epsilon_vector(mesh.attributes.Max());
     epsilon_vector(0) = 1.0;
+    epsilon_vector(1) = 0.301;
+    mfem::PWConstCoefficient epsilon(epsilon_vector);
     
-	mfem::ConstantCoefficient one(1.0);
+// 	mfem::ConstantCoefficient one(1.0);
 	mfem::LinearForm mass_lf(&fespace);
-	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(one));
+	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
 	mass_lf.Assemble();
 	
 	double integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
@@ -105,6 +107,21 @@ int main(){
 //     radial_diffusion.Save();
 //     poission.Save();
     
+    
+mfem::ConstantCoefficient one(1.0);
+mfem::LinearForm mass_lf(fespace);
+mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(one));
+mass_lf.Assemble();
+
+double total_mass_before = mass_lf(C);
+// ... do one Stepping() call ...
+double total_mass_after = mass_lf(C);
+
+double dmass = total_mass_after - total_mass_before;
+double expected = f_in * dt /* * boundary_measure if f_in isn't already integrated */
+                   + (reaction contribution) * dt;
+
+std::cout << "dmass = " << dmass << ", expected ≈ " << expected << std::endl;    
 
     return 0;
 }
