@@ -28,6 +28,8 @@ const double tau_l_sep = 1.0e4;
 const double C0 = 0.001;
 const double De = 0.25e-5;
 
+const double dt = 1.0e-4; 
+
 double ocv(double x){
     return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
 }
@@ -51,10 +53,13 @@ int main(){
 
 	mfem::GridFunction rxn(&fespace);;
 	rxn = 0.0;
+	for (int i = 20; i <= 80; i++) {
+		rxn(i) = a*0.02e-6;
+	}
 	
     std::cout << "Creating linear diffusion" << std::endl;
 	LinearDiffusion salt_electrolyte(&mesh, &fespace, eps_l_sep, eps_l_eld,
-		De, tau_l_sep, tau_l_eld, t_minus, C0, dt, rxn);
+		De, tau_l_sep, tau_l_eld, t_minus, C0, dt);
 
 //     std::cout << "Creating radial" << std::endl;
 //     Radial_Diffusion radial_diffusion(&mesh, &fespace);
@@ -71,28 +76,15 @@ int main(){
 //     mfem::PWConstCoefficient epsilon(epsilon_vector);
 // 
 //     
-// 	mfem::GridFunction C(&fespace);
-// 	mfem::LinearForm mass_lf(&fespace);
-// 	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
-// 	mass_lf.Assemble();	
-	
-
-
+	mfem::GridFunction C(&fespace);
 	C = salt_electrolyte.GetConcentration();  
-// 	C.Print();  
 
-	double integral_u = mass_lf(C);      // ∫ u dx  (LinearForm::operator() computes the dot product)
-	double volume     = mass_lf.Sum();   // ∫ 1 dx = domain volume
-	
-	double mean = integral_u / volume; 
-	std::cout << mean << std::endl;
-	
 	
 	    
     std::cout << "Starting loop" << std::endl;
 
-    double dt = 1e-4;
-    int num_steps = 1;
+    double dt = 1e-2;
+    int num_steps = 10000;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
@@ -131,6 +123,8 @@ int main(){
 //             << "  rxn: " << rxn
 //             << std::endl;
     }
+    C = salt_electrolyte.GetConcentration(); 
+    C.Print();
     salt_electrolyte.SaveConc();
     double MnConc = salt_electrolyte.GetMeanConcentration();
     std::cout << "MC = " << MnConc << std::endl;

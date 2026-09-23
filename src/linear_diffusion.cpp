@@ -70,13 +70,16 @@ LinearDiffusion::~LinearDiffusion() {
 }
 
 void LinearDiffusion::Stepping(mfem::GridFunction source) {
+	source *= -1.0;
     source *= t_minus;
+//     source.Print();
 
     mfem::GridFunctionCoefficient reaction(&source);   // FIX: pointer, not object
     mfem::LinearForm R_current(fespace);
     R_current.AddDomainIntegrator(new mfem::DomainLFIntegrator(reaction));
 
     double f_in = rxn_lf(source);   // now valid -- rxn_lf is a member
+//     std::cout << f_in << "---" << std::endl;
     mfem::ConstantCoefficient nbcCoef(f_in);
 
     mfem::Array<int> nbc_w_bdr(mesh->bdr_attributes.Max());
@@ -94,6 +97,7 @@ void LinearDiffusion::Stepping(mfem::GridFunction source) {
 
     solver.Mult(X, C_prev);
     C.SetFromTrueDofs(C_prev);
+//     C.Print();
 }
 
 
