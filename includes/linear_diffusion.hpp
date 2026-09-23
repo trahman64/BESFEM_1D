@@ -7,17 +7,18 @@ class LinearDiffusion {
 public:
     LinearDiffusion(mfem::Mesh *mesh,
               mfem::FiniteElementSpace *fespace,
-              double epsilon,
-              double D,
-              double a,
+              double epsilon_sep,
+              double epsilon_eld,              
+              double De,
+              double tau_sep,
+              double tau_eld,
               double t_minus,
-              double tau_electrode,
               double C0,
               double dt);
 
     ~LinearDiffusion();
 
-    void Stepping(double rxn);
+    void Stepping(mfem::GridFunction source);
     void SaveMesh();
     void SaveConc();
     mfem::GridFunction& GetConcentration();
@@ -27,17 +28,17 @@ private:
     mfem::Mesh *mesh;
     mfem::FiniteElementSpace *fespace;
 
-    double epsilon;
-    double D;
-    double a;
-    double t_minus;
-    double tau_electrode;
-    double C0;
-    double electrode_length;   // computed from mesh (region 2)
-    double dt;  // fixed timestep, set at construction
+	double epsilon_sep;
+	double epsilon_eld;             
+	double De;
+	double tau_sep;
+	double tau_eld;
+	double t_minus;
+	double C0;
+	double dt;
 
     mfem::GridFunction C;
-    mfem::Vector MC, KC, rhs;
+    mfem::Vector rhs, X;
     mfem::Vector C_prev;
 
     mfem::BilinearForm *M, *K;
@@ -46,11 +47,12 @@ private:
     mfem::SparseMatrix *TmatR = nullptr;
     mfem::SparseMatrix *TmatL = nullptr;
     mfem::GSSmoother   *prec = nullptr;
-    mfem::CGSolver      solver;    
+    mfem::CGSolver     solver;    
     
     mfem::Vector epsilon_vector;              // stored so PWConstCoefficient stays valid
     mfem::PWConstCoefficient *epsilon_coeff;  // built once, reused    
-    
+
+    mfem::LinearForm rxn_lf, vol_lf;          // NEW: assembled once in constructor, reused later
 };
 
 #endif

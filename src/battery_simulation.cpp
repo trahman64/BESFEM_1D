@@ -16,7 +16,17 @@ const double i0 = 0.5e-3;
 const double a = 2.409e3;    
 const double t_minus = 0.7619;
 
-const double rho = 0.0312;  
+const double rho = 0.0312; 
+
+
+// volume fraction of liquid 
+const double eps_l_eld = 0.301;
+const double eps_l_sep = 1.0;
+// tortuousity of liquid
+const double tau_l_eld = 1.521; 
+const double tau_l_sep = 1.0e4;  
+const double C0 = 0.001;
+const double De = 0.25e-5;
 
 double ocv(double x){
     return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
@@ -39,30 +49,32 @@ int main(){
     mfem::H1_FECollection fec(order, dim);
     mfem::FiniteElementSpace fespace(&mesh, &fec);
 
-    std::cout << "Creating diffusion" << std::endl;
-//     Diffusion salt_electrolyte(&mesh, &fespace);
-	LinearDiffusion salt_electrolyte(&mesh, &fespace, 0.301, 0.25e-5, 2.409e3, \
-		0.7619, 1.521, 0.001, 1e-2);
+	mfem::GridFunction rxn(&fespace);;
+	rxn = 0.0;
+	
+    std::cout << "Creating linear diffusion" << std::endl;
+	LinearDiffusion salt_electrolyte(&mesh, &fespace, eps_l_sep, eps_l_eld,
+		De, tau_l_sep, tau_l_eld, t_minus, C0, dt, rxn);
 
-    std::cout << "Creating radial" << std::endl;
+//     std::cout << "Creating radial" << std::endl;
 //     Radial_Diffusion radial_diffusion(&mesh, &fespace);
-    SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);    
+//     SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);    
 
 //     std::cout << "Creating potential" << std::endl;
 //     Potential poission(&mesh, &fespace,&salt_electrolyte);
     
     
 
-    mfem::Vector epsilon_vector(mesh.attributes.Max());
-    epsilon_vector(0) = 1.0;
-    epsilon_vector(1) = 0.301;
-    mfem::PWConstCoefficient epsilon(epsilon_vector);
-
-    
-	mfem::GridFunction C(&fespace);
-	mfem::LinearForm mass_lf(&fespace);
-	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
-	mass_lf.Assemble();	
+//     mfem::Vector epsilon_vector(mesh.attributes.Max());
+//     epsilon_vector(0) = 1.0;
+//     epsilon_vector(1) = 0.301;
+//     mfem::PWConstCoefficient epsilon(epsilon_vector);
+// 
+//     
+// 	mfem::GridFunction C(&fespace);
+// 	mfem::LinearForm mass_lf(&fespace);
+// 	mass_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(epsilon));
+// 	mass_lf.Assemble();	
 	
 
 
@@ -80,8 +92,8 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
     double dt = 1e-4;
-    int num_steps = 100;
-    double rxn = 0.02e-6;
+    int num_steps = 1;
+//     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
     for (int i = 0; i <num_steps; i++){
