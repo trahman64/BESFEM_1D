@@ -79,7 +79,8 @@ void LinearDiffusion::Stepping(mfem::GridFunction source) {
     R_current.AddDomainIntegrator(new mfem::DomainLFIntegrator(reaction));
 
     double f_in = rxn_lf(source);   // now valid -- rxn_lf is a member
-//     std::cout << f_in << "---" << std::endl;
+    std::cout << f_in << "---" << 2.409e3*0.02e-6*60e-4*t_minus << std::endl;
+//     rxn.Print();
     mfem::ConstantCoefficient nbcCoef(f_in);
 
     mfem::Array<int> nbc_w_bdr(mesh->bdr_attributes.Max());

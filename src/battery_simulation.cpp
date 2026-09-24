@@ -24,7 +24,7 @@ const double eps_l_eld = 0.301;
 const double eps_l_sep = 1.0;
 // tortuousity of liquid
 const double tau_l_eld = 1.521; 
-const double tau_l_sep = 1.0e4;  
+const double tau_l_sep = 1.0;  
 const double C0 = 0.001;
 const double De = 0.25e-5;
 
