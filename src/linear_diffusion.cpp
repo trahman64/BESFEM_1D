@@ -4,11 +4,10 @@
 
 LinearDiffusion::LinearDiffusion(mfem::Mesh *mesh_, mfem::FiniteElementSpace *fespace_,
                       double epsilon_sep_, double epsilon_eld_, double De_,
-                      double tau_sep_, double tau_eld_, double t_minus_,
-                      double C0_, double dt_)
+                      double tau_sep_, double tau_eld_, double C0_, double dt_)
     : mesh(mesh_), fespace(fespace_),
       epsilon_sep(epsilon_sep_), epsilon_eld(epsilon_eld_), De(De_),
-      tau_sep(tau_sep_), tau_eld(tau_eld_), t_minus(t_minus_), C0(C0_), dt(dt_),
+      tau_sep(tau_sep_), tau_eld(tau_eld_), C0(C0_), dt(dt_),
       C(fespace_), rhs(fespace_->GetTrueVSize()), X(fespace_->GetTrueVSize()),
       C_prev(fespace_->GetTrueVSize()),
       rxn_lf(fespace_), vol_lf(fespace_)
@@ -58,6 +57,7 @@ LinearDiffusion::LinearDiffusion(mfem::Mesh *mesh_, mfem::FiniteElementSpace *fe
     solver.SetAbsTol(0.0);
     solver.SetMaxIter(500);
     solver.SetPrintLevel(0);
+    solver.iterative_mode = true; 
 }
 
 LinearDiffusion::~LinearDiffusion() {
@@ -70,8 +70,8 @@ LinearDiffusion::~LinearDiffusion() {
 }
 
 void LinearDiffusion::Stepping(mfem::GridFunction source) {
-	source *= -1.0;
-    source *= t_minus;
+// 	source *= -1.0;
+//     source *= t_minus;
 //     source.Print();
 
     mfem::GridFunctionCoefficient reaction(&source);   // FIX: pointer, not object
@@ -79,8 +79,8 @@ void LinearDiffusion::Stepping(mfem::GridFunction source) {
     R_current.AddDomainIntegrator(new mfem::DomainLFIntegrator(reaction));
 
     double f_in = rxn_lf(source);   // now valid -- rxn_lf is a member
-    f_in *= f_in;
-    std::cout << f_in << "---" << 2.409e3*0.02e-6*60e-4*t_minus << std::endl;
+    f_in *= -1.0e0;
+//     std::cout << f_in << "---" << 2.409e3*0.02e-6*60e-4*t_minus << std::endl;
 //     rxn.Print();
     mfem::ConstantCoefficient nbcCoef(f_in);
 
@@ -119,6 +119,7 @@ void LinearDiffusion::SaveMesh() {
 
 void LinearDiffusion::SaveConc() {
     C.Save("diffusion_concentration.gf");
+    std::cout << "X" << std::endl;
 }
 
 mfem::GridFunction& LinearDiffusion::GetConcentration() {

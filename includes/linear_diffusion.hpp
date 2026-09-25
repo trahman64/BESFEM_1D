@@ -12,7 +12,6 @@ public:
               double De,
               double tau_sep,
               double tau_eld,
-              double t_minus,
               double C0,
               double dt);
 
@@ -33,7 +32,6 @@ private:
 	double De;
 	double tau_sep;
 	double tau_eld;
-	double t_minus;
 	double C0;
 	double dt;
 
