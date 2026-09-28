@@ -1,12 +1,12 @@
 #include "mfem.hpp"
+#include <cmath>
 
-// in a small header, e.g. potential_utils.hpp, or just above SolidPotential's definition
-mfem::Vector ComputeWeightVector(mfem::FiniteElementSpace *fespace,
-                                   double eps_s_sep, double eps_s_eld,
-                                   double tau_s_sep, double tau_s_eld)
+
+mfem::GridFunction ComputeKaps(mfem::GridFunction &Cn)
 {
-    mfem::Vector weight_vector(fespace->GetMesh()->attributes.Max());
-    weight_vector(0) = eps_s_sep / (tau_s_sep * tau_s_sep);   // separator
-    weight_vector(1) = eps_s_eld / (tau_s_eld * tau_s_eld);   // electrode
-    return weight_vector;
+    mfem::GridFunction Kps(Cn.FESpace());
+    for (int i = 0; i < Cn.Size(); i++) {
+        Kps(i) = 0.01929 + 0.7045 * std::tanh(2.399 * Cn(i)) - 0.7238 * std::tanh(2.412 * Cn(i));
+    }
+    return Kps;
 }
