@@ -5,6 +5,9 @@
 #include "../includes/spherical_diffusion.hpp"
 #include "../includes/linear_diffusion.hpp"
 #include "../includes/stat_potential.hpp"
+#include "../includes/diffCoeff_utils.hpp"
+#include "../includes/atnv_calculator.hpp"
+
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -92,6 +95,24 @@ int main(){
 //     std::cout << "Creating potential" << std::endl;
 //        
 
+    // Reserving the size of the vector
+    int n = 60;
+
+    std::vector<SphericalDiffusion> particles;
+    particles.reserve(n);
+    
+    for (int i = 0; i < n; i++)
+    {
+        particles.emplace_back(
+            4.0e-4,
+            40,
+            1.5e-10,
+            i,
+            1e-2,
+            1,
+            0.3
+        );
+    }
     mfem::Array<int> ess_bdr_s(mesh.bdr_attributes.Max());
     ess_bdr_s = 0;
     ess_bdr_s[1] = 1;
@@ -113,7 +134,7 @@ int main(){
 	
 	
 	
-	mfem::Array<int> ess_bdr_l(mesh->bdr_attributes.Max());   // -> if mesh is a pointer, else keep .
+	mfem::Array<int> ess_bdr_l(mesh.bdr_attributes.Max());   // -> if mesh is a pointer, else keep .
 	ess_bdr_l = 0;
 	ess_bdr_l[0] = 1;
 	
@@ -155,16 +176,21 @@ int main(){
     double frx_p = 0.0;
 
     for (int i = 0; i <num_steps; i++){
-        std::cout << "Step " << i << ": diffusion" << std::endl;
 		salt_electrolyte.Stepping(source_ely);
-		
 		solid_potential.Solve(source_phs, AtnV_0, BvP);
 		liquid_potential.Solve(source_phl, AtnV, BvE);		
+        for (int j = 0; j < n; j++)
+        {
+            int index = 20 + j;
+            double surface_flux = rxn(index) / a;
+            particles[j].Stepping(surface_flux);
+        }
+    }
 				     
 //             << std::endl;
-    }
-    C = salt_electrolyte.GetConcentration(); 
-    C.Print();
+    
+    Ce = salt_electrolyte.GetConcentration(); 
+    Ce.Print();
     salt_electrolyte.SaveConc();
     double MnConc = salt_electrolyte.GetMeanConcentration();
     std::cout << "MC = " << MnConc << std::endl;
