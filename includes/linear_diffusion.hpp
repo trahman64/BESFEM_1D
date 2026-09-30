@@ -5,52 +5,51 @@
 
 class LinearDiffusion {
 public:
-    LinearDiffusion(mfem::Mesh *mesh,
-              mfem::FiniteElementSpace *fespace,
-              double epsilon_sep,
-              double epsilon_eld,              
-              double De,
-              double tau_sep,
-              double tau_eld,
-              double C0,
-              double dt);
+	LinearDiffusion(mfem::Mesh *mesh, mfem::FiniteElementSpace *fespace,
+                 mfem::Array<int> &nbc_bdr,   // NEW: Neumann boundary marker, caller-supplied
+                 double C0, double dt);
 
     ~LinearDiffusion();
 
-    void Stepping(mfem::GridFunction source);
-    void SaveMesh();
-    void SaveConc();
-    mfem::GridFunction& GetConcentration();
+    void SetWeightVector(double eps_sep, double eps_eld, double tau_sep, double tau_eld);
+    void SetCoefficient(mfem::GridFunction &D);   // D: diffusivity field (e.g. De_gf)
+    void BuildOperator();
+    void UpdateOperator();   // call after D's VALUES change (same mesh/space)
+
+    void Stepping(mfem::GridFunction &source);
+
     double GetMeanConcentration();
+    void SaveMesh();
+    void SaveConc(const std::string &filename = "elyConc.gf");
+    mfem::GridFunction& GetConcentration();
 
 private:
     mfem::Mesh *mesh;
     mfem::FiniteElementSpace *fespace;
 
-	double epsilon_sep;
-	double epsilon_eld;             
-	double De;
-	double tau_sep;
-	double tau_eld;
-	double C0;
-	double dt;
+    double C0, dt;
 
     mfem::GridFunction C;
-    mfem::Vector rhs, X;
-    mfem::Vector C_prev;
+    mfem::Vector rhs, X, C_prev;
 
-    mfem::BilinearForm *M, *K;
-    mfem::SparseMatrix *M_mat, *K_mat;  
+    mfem::Vector epsilon_vector;    // porosity per region -- for M
+    mfem::Vector weight_vector;     // eps/tau^2 per region -- scales D for K
+    mfem::PWConstCoefficient *epsilon_coeff = nullptr;
+    mfem::PWConstCoefficient *region_weight = nullptr;
+    mfem::GridFunctionCoefficient *D_coeff = nullptr;
+    mfem::ProductCoefficient *weight_eff_D = nullptr;
+
+    mfem::BilinearForm *M = nullptr;
+    mfem::BilinearForm *K = nullptr;
+    mfem::SparseMatrix *M_mat, *K_mat;
 
     mfem::SparseMatrix *TmatR = nullptr;
     mfem::SparseMatrix *TmatL = nullptr;
     mfem::GSSmoother   *prec = nullptr;
-    mfem::CGSolver     solver;    
-    
-    mfem::Vector epsilon_vector;              // stored so PWConstCoefficient stays valid
-    mfem::PWConstCoefficient *epsilon_coeff;  // built once, reused    
+    mfem::CGSolver solver;
 
-    mfem::LinearForm rxn_lf, vol_lf;          // NEW: assembled once in constructor, reused later
+    mfem::Array<int> nbc_bdr;
+    mfem::LinearForm rxn_lf, vol_lf;
 };
 
 #endif
