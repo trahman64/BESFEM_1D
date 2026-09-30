@@ -5,6 +5,8 @@
 #include "../includes/spherical_diffusion.hpp"
 #include "../includes/linear_diffusion.hpp"
 #include "../includes/stat_potential.hpp"
+#include "../includes/atnv_calculator.hpp"
+#include "../includes/diffCoeff_utils.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -113,7 +115,7 @@ int main(){
 	
 	
 	
-	mfem::Array<int> ess_bdr_l(mesh->bdr_attributes.Max());   // -> if mesh is a pointer, else keep .
+	mfem::Array<int> ess_bdr_l(mesh.bdr_attributes.Max());   // -> if mesh is a pointer, else keep .
 	ess_bdr_l = 0;
 	ess_bdr_l[0] = 1;
 	
@@ -142,6 +144,7 @@ int main(){
 	
 	mfem::GridFunction source_phl(&fespace);
 	source_phl = rxn;
+	source_phl.Neg();
 
 	double BvE = 0.0;
 
@@ -150,7 +153,7 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
     double dt = 1e-2;
-    int num_steps = 10000;
+    int num_steps = 1;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
@@ -158,11 +161,12 @@ int main(){
         std::cout << "Step " << i << ": diffusion" << std::endl;
 		salt_electrolyte.Stepping(source_ely);
 		
-		solid_potential.Solve(source_phs, AtnV_0, BvP);
+// 		solid_potential.Solve(source_phs, AtnV_0, BvP);
 		liquid_potential.Solve(source_phl, AtnV, BvE);		
 				     
 //             << std::endl;
     }
+	mfem::GridFunction C(&fespace);
     C = salt_electrolyte.GetConcentration(); 
     C.Print();
     salt_electrolyte.SaveConc();
@@ -173,7 +177,7 @@ int main(){
 // 	mfem::GridFunction Php(&fespace);    
 //     Php = solid_potential.GetPotential();
 //     solid_potential.SavePote();
-    liquid_potential.SavePote();    
+    liquid_potential.SavePote("liquid_phi.gf");    
     
 // 	particle_1.SaveConc();
     

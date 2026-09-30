@@ -86,7 +86,7 @@ mfem::GridFunction& StatPotential::GetPotential() {
     return phi;
 }
 
-void StatPotential::SavePote() {
-    phi.Save("phi_solid.gf");
-    std::cout << "Saved phi_solid.gf" << std::endl;
+void StatPotential::SavePote(const std::string &filename) {
+    phi.Save(filename.c_str());
+    std::cout << "Saved " << filename << std::endl;
 }

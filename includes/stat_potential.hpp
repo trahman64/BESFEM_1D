@@ -6,15 +6,19 @@
 class StatPotential {
 public:
     StatPotential(mfem::FiniteElementSpace *fespace,
-                  mfem::Coefficient &effective_kappa,
                   mfem::Array<int> &ess_bdr);
 
     ~StatPotential();
 
+    void SetWeightVector(double eps_sep, double eps_eld, double tau_sep, double tau_eld);
+    void SetCoefficient(mfem::GridFunction &Kappa);
+    void BuildOperator();
+    void UpdateOperator();
+
     void Solve(mfem::GridFunction &source, mfem::Vector &Additional, double Bv);
 
     mfem::GridFunction& GetPotential();
-    void SavePote();
+    void SavePote(const std::string &filename = "phi.gf"); 
 
 private:
     mfem::FiniteElementSpace *fespace;
@@ -25,11 +29,16 @@ private:
     mfem::Array<int> ess_bdr;
     mfem::Array<int> ess_tdof_list;
 
-    mfem::BilinearForm *K;
-    mfem::SparseMatrix *K_mat;
-    mfem::SparseMatrix A;   // FIX: object, not pointer
+    mfem::Vector weight_vector;
+    mfem::PWConstCoefficient *region_weight = nullptr;
+    mfem::GridFunctionCoefficient *kappa_coeff = nullptr;
+    mfem::ProductCoefficient *weight_eff_kappa = nullptr;
 
-    mfem::GSSmoother *prec;
+    mfem::BilinearForm *K = nullptr;
+    mfem::SparseMatrix *K_mat;
+    mfem::SparseMatrix A;
+
+    mfem::GSSmoother *prec = nullptr;
     mfem::CGSolver solver;
 };
 
