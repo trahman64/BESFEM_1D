@@ -23,6 +23,9 @@ public:
     double GetConcentrationAt(double x);
     int GetParticleID() const;
 
+	double GetParticleVolume();
+	double GetParticleTotalLi();
+
     void SaveConc(const std::string &prefix = "sphere");
     void SaveMesh(const std::string &prefix = "sphere");
 
@@ -58,7 +61,7 @@ private:
 
     void BuildMesh(int n_elements);
     void BuildOperators();
-//     void Initialize();
+
 };
 
 #endif

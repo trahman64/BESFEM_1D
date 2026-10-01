@@ -5,6 +5,7 @@
 #include "../includes/atnv_calculator.hpp"
 #include "../includes/diffCoeff_utils.hpp"
 #include "../includes/potential_utils.hpp"
+#include "../includes/electrode.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -94,7 +95,7 @@ int main(){
 	rxn = 0.0;
 
 	for (int i = 0; i < n_elde_nodes; i++) {
-		rxn(region2_dofs[i]) = aPv*0.2e-10;
+		rxn(region2_dofs[i]) = aPv*0.2e-11;
 	}
 // 	rxn.Print();
 // 	for (int i = 20; i <= 80; i++) {
@@ -136,48 +137,41 @@ int main(){
 	source_ely *= t_minus;
 	
 	
-	// ======================================================
-	//   _____           _   _      _           
-	//  |  __ \         | | (_)    | |          
-	//  | |__) |_ _ _ __| |_ _  ___| | ___  ___ 
-	//  |  ___/ _` | '__| __| |/ __| |/ _ \/ __|
-	//  | |  | (_| | |  | |_| | (__| |  __/\__ \
-	//  |_|   \__,_|_|   \__|_|\___|_|\___||___/
-	// ======================================================                                          
+	// ======================================================		
+	//   ______ _           _                 _      
+	//  |  ____| |         | |               | |     
+	//  | |__  | | ___  ___| |_ _ __ ___   __| | ___ 
+	//  |  __| | |/ _ \/ __| __| '__/ _ \ / _` |/ _ \
+	//  | |____| |  __/ (__| |_| | | (_) | (_| |  __/
+	//  |______|_|\___|\___|\__|_|  \___/ \__,_|\___|
+	// ======================================================	                                              
+                                                                                       
                                          
     std::cout << "Creating particle diffusion" << std::endl;    // Reserving the size of the vector
 
-    std::vector<SphericalDiffusion> particles;
-    particles.reserve(n_elde_nodes);
-    
-    int p_id;
-    for (int i = 0; i < n_elde_nodes; i++) {
-    	p_id = region2_dofs[i];
-    	particles.emplace_back(p_id, rad, 40, 1, Cp0, dt);
-    }
-      
-// 	SphericalDiffusion p1(30, rad, 40, 1, Cp0, dt);
- 	
+	mfem::GridFunction parti_radii(&fespace);
+	parti_radii = rad;
+	
+	Electrode NMC_electrode(&fespace, region2_dofs, parti_radii, 40, 1, Cp0, dt);
  	mfem::GridFunction Cp_surf(&fespace);
  	mfem::GridFunction Cp_mConc(&fespace);
- 	mfem::GridFunction part_totLi(&fespace);
- 	mfem::GridFunction part_volume(&fespace);
- 	Cp_surf = 0.0;
- 	Cp_mConc = 0.0;
- 	part_totLi = 0.0;
- 	part_volume = 0.0;
+//  	Cp_surf = 0.0;
+//  	Cp_mConc = 0.0; 
  	
- 	p_id = region2_dofs[0];
-	for (int p = 0; p < n_elde_nodes; p++) {
-		p_id = particles[p].GetParticleID();
- 		Cp_surf(p_id) = particles[p].GetConcentrationAt(rad);
- 		Cp_mConc(p_id) = particles[p].GetMeanConcentration();
- 		part_volume(p_id) = particles[p].GetParticleVolume();
- 		part_totLi(p_id) = particles[p].GetParticleTotalLi();	
-	}
- 	double Vol = part_volume.Sum();
- 	double totX = part_totLi.Sum();	
+	Cp_surf = NMC_electrode.GetSurfaceConcentration();
+	Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
 	
+// 	Cp_surf.Print();
+// 	Cp_mConc.Print();
+	
+ 	double Vol = NMC_electrode.GetTotalVolume();
+ 	double totX = NMC_electrode.GetTotalLi();
+	double Xfr = NMC_electrode.GetDoD();
+ 	std::cout << Vol << " " << totX << " " << Xfr << std::endl;
+ 	
+ 	mfem::GridFunction source_eld(&fespace);
+ 	source_eld = rxn;
+	source_eld /= rho;
  
 //     std::cout << "Creating potential" << std::endl;
 // 
@@ -197,8 +191,8 @@ int main(){
     ess_bdr_s[1] = 1;
     
     mfem::GridFunction Kappa(&fespace);
-//     Kappa = ComputeKaps(Cp_mConc, is_in_region2);
-    Kappa = kappa_s;
+    Kappa = ComputeKaps(Cp_mConc, is_in_region2);
+//     Kappa = kappa_s;
 
 	StatPotential solid_potential(&fespace, ess_bdr_s);
 	solid_potential.SetWeightVector(eps_s_sep, eps_s_eld, tau_s_sep, tau_s_eld);   // sets region_weight
@@ -258,7 +252,7 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
 //     double dt = 1e-2;
-    int num_steps = 10;
+    int num_steps = 1000;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
@@ -267,17 +261,21 @@ int main(){
 			std::cout << "Step " << iter << ": diffusion" << std::endl;
     	}
 
-		Ce = salt_electrolyte.GetConcentration();	
-		De_gf = ComputeDamb(Ce);
-		salt_electrolyte.UpdateOperator();
-		salt_electrolyte.Stepping(source_ely);
+// 		Ce = salt_electrolyte.GetConcentration();	
+// 		De_gf = ComputeDamb(Ce);
+// 		salt_electrolyte.UpdateOperator();
+// 		salt_electrolyte.Stepping(source_ely);
+
+		NMC_electrode.UpdateOperators();		
+		NMC_electrode.Stepping(source_eld);
+		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
 		
 		
-		for (int p = 0; p < n_elde_nodes; p++) {
-			p_id = particles[p].GetParticleID();
-			particles[p].Stepping(rxn(p_id));
-			particles[p].UpdateOperator();
-		}
+// 		for (int p = 0; p < n_elde_nodes; p++) {
+// 			p_id = particles[p].GetParticleID();
+// 			particles[p].Stepping(rxn(p_id));
+// 			particles[p].UpdateOperator();
+// 		}
 // 		p1.Stepping(0.02e-6);
 // 		p1.UpdateOperator();  
 		
@@ -300,10 +298,17 @@ int main(){
 
 
 		solid_potential.Solve(source_phs, AtnV_0, BvP);
-		liquid_potential.Solve(source_phl, AtnV, BvE);		
+// 		liquid_potential.Solve(source_phl, AtnV, BvE);		
 				     
 //             << std::endl;
     }
+
+// 	NMC_electrode.SaveAllConc();
+	NMC_electrode.SaveConcByID(40);
+	std::cout << NMC_electrode.GetDoD() << std::endl;
+	
+	
+
 //     p1.SaveConc();
 // 	mfem::GridFunction C(&fespace);
 //     C = salt_electrolyte.GetConcentration(); 
@@ -312,14 +317,14 @@ int main(){
 //     double MnConc = salt_electrolyte.GetMeanConcentration();
 //     std::cout << "MC = " << MnConc << std::endl;
  
- 	std::cout << particles[3].GetMeanConcentration() 
- 		<< "  " << particles[57].GetMeanConcentration() << std::endl;
- 	particles[3].SaveConc();
- 	particles[57].SaveConc();	 
+//  	std::cout << particles[3].GetMeanConcentration() 
+//  		<< "  " << particles[57].GetMeanConcentration() << std::endl;
+//  	particles[3].SaveConc();
+//  	particles[57].SaveConc();	 
  	
 // 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();
-//     solid_potential.SavePote("solid_phi.gf");
+    solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
 //     liquid_potential.SavePote("liquid_phi.gf");    
     
