@@ -45,16 +45,16 @@ double BvE = 0.0;
 double rad = 4.0e-4;
 double Cp0 = 0.3;
 
-double ocv(double x){
-    return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
-}
+// double ocv(double x){
+//     return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
+// }
 
-double butlerVolmer(double phi_s, double phi_e, double x){
-    double phi_ocv = ocv(x);
-    double n = (phi_s - phi_e) - phi_ocv;
-    double rxn = (i0/F) * (std::exp((-alpha*F/(R*T))*n) - std::exp(((1-alpha)*F/(R*T))*n));
-    return rxn;
-}
+// double butlerVolmer(double phi_s, double phi_e, double x){
+//     double phi_ocv = ocv(x);
+//     double n = (phi_s - phi_e) - phi_ocv;
+//     double rxn = (i0/F) * (std::exp((-alpha*F/(R*T))*n) - std::exp(((1-alpha)*F/(R*T))*n));
+//     return rxn;
+// }
 
 
 
@@ -94,7 +94,7 @@ int main(){
 	rxn = 0.0;
 
 	for (int i = 0; i < n_elde_nodes; i++) {
-		rxn(region2_dofs[i]) = a*0.02e-6;
+		rxn(region2_dofs[i]) = aPv*0.2e-10;
 	}
 // 	rxn.Print();
 // 	for (int i = 20; i <= 80; i++) {
@@ -146,36 +146,38 @@ int main(){
 	// ======================================================                                          
                                          
     std::cout << "Creating particle diffusion" << std::endl;    // Reserving the size of the vector
-//     int n = 60;
 
-//     std::vector<SphericalDiffusion> particles;
-//     particles.reserve(n);
-//     
-//     for (int i = 0; i < n; i++){
-//         particles.emplace_back(i, 4.0e-4, 40, 1, 1.5e-10, 0.3, 1e-2);
-//     }
-//     
-// for (int step = 0; step < n_steps; step++) {
-//     particle.Stepping(surface_flux);   // updates C
-//     particle.UpdateOperator();          // recompute D_li from the NEW C, reassemble K
-// }    
+    std::vector<SphericalDiffusion> particles;
+    particles.reserve(n_elde_nodes);
     
-  
-	SphericalDiffusion p1(30, rad, 40, 1, Cp0, dt);
+    int p_id;
+    for (int i = 0; i < n_elde_nodes; i++) {
+    	p_id = region2_dofs[i];
+    	particles.emplace_back(p_id, rad, 40, 1, Cp0, dt);
+    }
+      
+// 	SphericalDiffusion p1(30, rad, 40, 1, Cp0, dt);
  	
  	mfem::GridFunction Cp_surf(&fespace);
  	mfem::GridFunction Cp_mConc(&fespace);
- 	
+ 	mfem::GridFunction part_totLi(&fespace);
+ 	mfem::GridFunction part_volume(&fespace);
  	Cp_surf = 0.0;
  	Cp_mConc = 0.0;
- 	int p_id = region2_dofs[0];
-	for (int p = 0; p < n_elde_nodes; p++) {
-		p_id = p1.GetParticleID();
- 		Cp_surf(p_id) = p1.GetConcentrationAt(rad);
- 		Cp_mConc(p_id) = p1.GetMeanConcentration();
- 		if ( Cp_mConc(p_id) < 1e-5){Cp_mConc(p_id) = 0.5;}
-	}
+ 	part_totLi = 0.0;
+ 	part_volume = 0.0;
  	
+ 	p_id = region2_dofs[0];
+	for (int p = 0; p < n_elde_nodes; p++) {
+		p_id = particles[p].GetParticleID();
+ 		Cp_surf(p_id) = particles[p].GetConcentrationAt(rad);
+ 		Cp_mConc(p_id) = particles[p].GetMeanConcentration();
+ 		part_volume(p_id) = particles[p].GetParticleVolume();
+ 		part_totLi(p_id) = particles[p].GetParticleTotalLi();	
+	}
+ 	double Vol = part_volume.Sum();
+ 	double totX = part_totLi.Sum();	
+	
  
 //     std::cout << "Creating potential" << std::endl;
 // 
@@ -256,13 +258,13 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
 //     double dt = 1e-2;
-    int num_steps = 100;
+    int num_steps = 10;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
-    for (int i = 0; i <num_steps; i++){
-    	if (i % 20 == 0 ){
-			std::cout << "Step " << i << ": diffusion" << std::endl;
+    for (int iter = 0; iter <num_steps; iter++){
+    	if (iter % 20 == 0 ){
+			std::cout << "Step " << iter << ": diffusion" << std::endl;
     	}
 
 		Ce = salt_electrolyte.GetConcentration();	
@@ -270,7 +272,12 @@ int main(){
 		salt_electrolyte.UpdateOperator();
 		salt_electrolyte.Stepping(source_ely);
 		
-
+		
+		for (int p = 0; p < n_elde_nodes; p++) {
+			p_id = particles[p].GetParticleID();
+			particles[p].Stepping(rxn(p_id));
+			particles[p].UpdateOperator();
+		}
 // 		p1.Stepping(0.02e-6);
 // 		p1.UpdateOperator();  
 		
@@ -288,7 +295,7 @@ int main(){
 	
 		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
 		
-// 		Kappa = ComputeKaps(Cp_mConc, is_in_region2);
+		Kappa = ComputeKaps(Cp_mConc, is_in_region2);
 		solid_potential.UpdateOperator();
 
 
@@ -301,16 +308,20 @@ int main(){
 // 	mfem::GridFunction C(&fespace);
 //     C = salt_electrolyte.GetConcentration(); 
 //     C.Print();
-    salt_electrolyte.SaveConc("elyConc.gf");
+//     salt_electrolyte.SaveConc("elyConc.gf");
 //     double MnConc = salt_electrolyte.GetMeanConcentration();
 //     std::cout << "MC = " << MnConc << std::endl;
  
+ 	std::cout << particles[3].GetMeanConcentration() 
+ 		<< "  " << particles[57].GetMeanConcentration() << std::endl;
+ 	particles[3].SaveConc();
+ 	particles[57].SaveConc();	 
  	
 // 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();
-    solid_potential.SavePote("solid_phi.gf");
+//     solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
-    liquid_potential.SavePote("liquid_phi.gf");    
+//     liquid_potential.SavePote("liquid_phi.gf");    
     
 // 	particle_1.SaveConc();
     

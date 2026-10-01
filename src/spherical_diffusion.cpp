@@ -132,6 +132,22 @@ double SphericalDiffusion::GetMeanConcentration() {
     return integral_Cr2 / volume;
 }
 
+double SphericalDiffusion::GetParticleVolume() {
+    double volume = R * R * R / 3.0;   // ∫_0^R r^2 dr
+    return volume;
+}
+
+double SphericalDiffusion::GetParticleTotalLi() {
+    mfem::FunctionCoefficient r2_coeff([](const mfem::Vector &x) {
+        return x(0) * x(0);
+    });
+    mfem::LinearForm vol_lf(fespace);
+    vol_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(r2_coeff));
+    vol_lf.Assemble();
+    double integral_Cr2 = vol_lf(C);
+    return integral_Cr2;
+}   // <-- added missing closing brace
+
 double SphericalDiffusion::GetConcentrationAt(double x) {
     mfem::Array<int> elem_ids;
     mfem::Array<mfem::IntegrationPoint> ips;
@@ -158,9 +174,9 @@ mfem::GridFunction& SphericalDiffusion::GetConcentration() {
 }
 
 void SphericalDiffusion::SaveConc(const std::string &prefix) {
-    C.Save((prefix + "_concentration.gf").c_str());
+    C.Save((prefix + std::to_string(x_idx) + "_concentration.gf").c_str());
 }
 
 void SphericalDiffusion::SaveMesh(const std::string &prefix) {
-    mesh->Save((prefix + "_mesh.mesh").c_str());
+    mesh->Save((prefix + std::to_string(x_idx) + "_mesh.mesh").c_str());
 }
