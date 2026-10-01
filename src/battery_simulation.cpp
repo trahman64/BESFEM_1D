@@ -1,7 +1,4 @@
 #include "mfem.hpp"
-// #include "../includes/diffusion.hpp"
-// #include "../includes/potential.hpp"
-// #include "../includes/radial_diffusion.hpp"
 #include "../includes/spherical_diffusion.hpp"
 #include "../includes/linear_diffusion.hpp"
 #include "../includes/stat_potential.hpp"
@@ -15,9 +12,9 @@ const double T = 300.0;
 
 const double alpha = 0.5;
 
-const double i0 = 0.5e-3;   
+// const double i0 = 0.5e-3;   
 
-const double a = 2.409e3;    
+const double aPv = 2.409e3;    
 const double t_minus = 0.7619;
 
 const double rho = 0.0312; 
@@ -163,8 +160,7 @@ int main(){
 //     particle.UpdateOperator();          // recompute D_li from the NEW C, reassemble K
 // }    
     
-//     Radial_Diffusion radial_diffusion(&mesh, &fespace);
-//     SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);  
+  
 	SphericalDiffusion p1(30, rad, 40, 1, Cp0, dt);
  	
  	mfem::GridFunction Cp_surf(&fespace);
