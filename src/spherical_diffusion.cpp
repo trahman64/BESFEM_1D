@@ -1,24 +1,25 @@
 #include "../includes/spherical_diffusion.hpp"
+#include "../includes/diffCoeff_utils.hpp"   
 #include <iostream>
 
-SphericalDiffusion::SphericalDiffusion(double radius,
-                                        int n_elements,
-                                        double diffusion_coef,
-                                        int x_idx_,
-                                        double dt_,
-                                        int fe_order,
-                                        double C0)
-    : R(radius), D(diffusion_coef), order(fe_order), x_idx(x_idx_), dt(dt_)
+SphericalDiffusion::SphericalDiffusion(int x_idx_, 
+									   double radius,
+                                       int n_elements,
+                                       int fe_order, 
+                                       double C0,
+                                       double dt_)
+    : R(radius), order(fe_order), x_idx(x_idx_), dt(dt_)
 {
     BuildMesh(n_elements);
 
-    fec = new mfem::H1_FECollection(order, 1);   // 1D H1 elements
+    fec = new mfem::H1_FECollection(order, fe_order);   // 1D H1 elements
     fespace = new mfem::FiniteElementSpace(mesh, fec);
 
     C.SetSpace(fespace);
     C = C0;
     C_prev.SetSize(fespace->GetTrueVSize());
     C.GetTrueDofs(C_prev);
+    D_li.SetSpace(fespace); 
 
     BuildOperators();
 
@@ -28,7 +29,6 @@ SphericalDiffusion::SphericalDiffusion(double radius,
     outer_bdr_marker = 0;
     outer_bdr_marker[1] = 1;   // attribute 2 -> index 1
 
-    Initialize();   // build Tmat + solver now that M_mat, K_mat, dt are all set
 }
 
 SphericalDiffusion::~SphericalDiffusion() {
@@ -36,7 +36,9 @@ SphericalDiffusion::~SphericalDiffusion() {
     delete K;
     delete Tmat;
     delete prec;
-    // M_mat / K_mat point into M / K's own storage -- not deleted separately
+    delete r2_coeff;
+    delete D_li_coeff;
+    delete D_r2;
     delete fespace;
     delete fec;
     delete mesh;
@@ -47,33 +49,29 @@ void SphericalDiffusion::BuildMesh(int n_elements) {
 }
 
 void SphericalDiffusion::BuildOperators() {
-    mfem::FunctionCoefficient r2_coeff([](const mfem::Vector &x) {
-        return x(0) * x(0);
-    });
+    r.SetSpace(fespace);
+    mesh->GetNodes(r);
+    r *= r;
+    r2_coeff = new mfem::GridFunctionCoefficient(&r);
 
-    mfem::ConstantCoefficient D_coeff(D);
-    mfem::ProductCoefficient D_r2(D_coeff, r2_coeff);   // D * r^2  (stiffness weight)
+    D_li = ComputeDLi(C);
+    D_li_coeff = new mfem::GridFunctionCoefficient(&D_li);
+    D_r2 = new mfem::ProductCoefficient(*D_li_coeff, *r2_coeff);
 
     M = new mfem::BilinearForm(fespace);
-    M->AddDomainIntegrator(new mfem::MassIntegrator(r2_coeff));
+    M->AddDomainIntegrator(new mfem::MassIntegrator(*r2_coeff));
     M->Assemble();
     M->Finalize();
 
     K = new mfem::BilinearForm(fespace);
-    K->AddDomainIntegrator(new mfem::DiffusionIntegrator(D_r2));
+    K->AddDomainIntegrator(new mfem::DiffusionIntegrator(*D_r2));
     K->Assemble();
     K->Finalize();
 
     M_mat = &M->SpMat();
     K_mat = &K->SpMat();
     
-    std::cout << D << std::endl;    
-    
-}
-
-void SphericalDiffusion::Initialize() {
-    // Forward Euler: solve M * C^{n+1} = (M - dt*K) C^n + dt*f
-    // Operator is just M -- doesn't depend on dt at all.
+    // --- merged in from Initialize() ---
     prec = new mfem::GSSmoother(*M_mat);
     solver.SetOperator(*M_mat);
     solver.SetPreconditioner(*prec);
@@ -81,10 +79,23 @@ void SphericalDiffusion::Initialize() {
     solver.SetAbsTol(0.0);
     solver.SetMaxIter(500);
     solver.SetPrintLevel(0);
-
-    // Explicit RHS matrix, built once since dt is fixed:
-    Tmat = Add(1.0, *M_mat, -dt, *K_mat);   // Tmat = M - dt*K  (note: MINUS now)
+    
+    Tmat = Add(1.0, *M_mat, -dt, *K_mat);    
 }
+
+
+void SphericalDiffusion::UpdateOperator() {
+    D_li = ComputeDLi(C);   // D_li_coeff already points at this member -- sees new values automatically
+
+    K->Update();
+    K->Assemble();
+    K->Finalize();
+    K_mat = &K->SpMat();
+
+    delete Tmat;
+    Tmat = Add(1.0, *M_mat, -dt, *K_mat);
+}
+
 
 void SphericalDiffusion::Stepping(double surface_flux) {
     // Weak-form boundary term at r=R: [D r^2 dC/dr v]_{r=R} = R^2 * surface_flux * v(R)

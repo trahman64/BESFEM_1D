@@ -7,6 +7,7 @@
 #include "../includes/stat_potential.hpp"
 #include "../includes/atnv_calculator.hpp"
 #include "../includes/diffCoeff_utils.hpp"
+#include "../includes/potential_utils.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -31,7 +32,7 @@ const double tau_l_sep = 1.0;
 const double C0 = 0.001;
 const double De = 0.25e-5;
 
-const double dt = 1.0e-4; 
+const double dt = 1.0e-2; 
 
 double kappa_s = 0.075;
 // volume fraction of solid 
@@ -44,6 +45,8 @@ double BvP = 0.0;
 double BvE = 0.0;
 
 
+double rad = 4.0e-4;
+double Cp0 = 0.3;
 
 double ocv(double x){
     return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
@@ -65,17 +68,41 @@ int main(){
 
     mfem::H1_FECollection fec(order, dim);
     mfem::FiniteElementSpace fespace(&mesh, &fec);
+    
+    // information of the electrode region
+	mfem::Array<int> region2_dofs;
+	mfem::Array<int> is_in_region2(fespace.GetVSize());
+	is_in_region2 = 0;
+	
+	for (int e = 0; e < mesh.GetNE(); e++) {
+		if (mesh.GetAttribute(e) == 2) {   // element belongs to region 2
+			mfem::Array<int> vdofs;
+			fespace.GetElementVDofs(e, vdofs);
+			for (int i = 0; i < vdofs.Size(); i++) {
+				is_in_region2[vdofs[i]] = 1;
+			}
+		}
+	}
+	
+	// Convert the boolean mask into an actual list of DOF indices
+	for (int i = 0; i < is_in_region2.Size(); i++) {
+		if (is_in_region2[i]) {
+			region2_dofs.Append(i);
+		}
+	}    
+	int n_elde_nodes = region2_dofs.Size();
+    
 
 	mfem::GridFunction rxn(&fespace);;
 	rxn = 0.0;
-	for (int i = 20; i <= 80; i++) {
-		rxn(i) = a*0.02e-6;
+
+	for (int i = 0; i < n_elde_nodes; i++) {
+		rxn(region2_dofs[i]) = a*0.02e-6;
 	}
-	
-	mfem::GridFunction source_ely(&fespace);
-	source_ely = rxn;
-	source_ely *= -1.0;
-	source_ely *= t_minus;
+// 	rxn.Print();
+// 	for (int i = 20; i <= 80; i++) {
+// 		rxn(i) = a*0.02e-6;
+// 	}
 
 	// ======================================================	
 	//   ______ _           _             _       _       
@@ -87,6 +114,8 @@ int main(){
 	//                                       __/ |        
 	//                                      |___/         
 	// ======================================================	
+	
+	
 	mfem::Array<int> nbc_bdr(mesh.bdr_attributes.Max());
 	nbc_bdr = 0;
 	nbc_bdr[0] = 1;   // mark whichever boundary attribute is the Neumann flux boundary	
@@ -104,11 +133,54 @@ int main(){
 	salt_electrolyte.SetCoefficient(De_gf);
 	salt_electrolyte.BuildOperator();
 
+	mfem::GridFunction source_ely(&fespace);
+	source_ely = rxn;
+	source_ely *= -1.0;
+	source_ely *= t_minus;
+	
+	
+	// ======================================================
+	//   _____           _   _      _           
+	//  |  __ \         | | (_)    | |          
+	//  | |__) |_ _ _ __| |_ _  ___| | ___  ___ 
+	//  |  ___/ _` | '__| __| |/ __| |/ _ \/ __|
+	//  | |  | (_| | |  | |_| | (__| |  __/\__ \
+	//  |_|   \__,_|_|   \__|_|\___|_|\___||___/
+	// ======================================================                                          
+                                         
+    std::cout << "Creating particle diffusion" << std::endl;    // Reserving the size of the vector
+//     int n = 60;
 
-//     std::cout << "Creating radial" << std::endl;
+//     std::vector<SphericalDiffusion> particles;
+//     particles.reserve(n);
+//     
+//     for (int i = 0; i < n; i++){
+//         particles.emplace_back(i, 4.0e-4, 40, 1, 1.5e-10, 0.3, 1e-2);
+//     }
+//     
+// for (int step = 0; step < n_steps; step++) {
+//     particle.Stepping(surface_flux);   // updates C
+//     particle.UpdateOperator();          // recompute D_li from the NEW C, reassemble K
+// }    
+    
 //     Radial_Diffusion radial_diffusion(&mesh, &fespace);
-//     SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);    
-
+//     SphericalDiffusion particle_1(4.0e-4, 40, 1.5e-10, 60, 1e-2, 1, 0.3);  
+	SphericalDiffusion p1(30, rad, 40, 1, Cp0, dt);
+ 	
+ 	mfem::GridFunction Cp_surf(&fespace);
+ 	mfem::GridFunction Cp_mConc(&fespace);
+ 	
+ 	Cp_surf = 0.0;
+ 	Cp_mConc = 0.0;
+ 	int p_id = region2_dofs[0];
+	for (int p = 0; p < n_elde_nodes; p++) {
+		p_id = p1.GetParticleID();
+ 		Cp_surf(p_id) = p1.GetConcentrationAt(rad);
+ 		Cp_mConc(p_id) = p1.GetMeanConcentration();
+ 		if ( Cp_mConc(p_id) < 1e-5){Cp_mConc(p_id) = 0.5;}
+	}
+ 	
+ 
 //     std::cout << "Creating potential" << std::endl;
 // 
        
@@ -127,6 +199,7 @@ int main(){
     ess_bdr_s[1] = 1;
     
     mfem::GridFunction Kappa(&fespace);
+//     Kappa = ComputeKaps(Cp_mConc, is_in_region2);
     Kappa = kappa_s;
 
 	StatPotential solid_potential(&fespace, ess_bdr_s);
@@ -186,18 +259,24 @@ int main(){
 	    
     std::cout << "Starting loop" << std::endl;
 
-    double dt = 1e-2;
-    int num_steps = 10000;
+//     double dt = 1e-2;
+    int num_steps = 100;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
     for (int i = 0; i <num_steps; i++){
-        std::cout << "Step " << i << ": diffusion" << std::endl;
+    	if (i % 20 == 0 ){
+			std::cout << "Step " << i << ": diffusion" << std::endl;
+    	}
+
+		Ce = salt_electrolyte.GetConcentration();	
+		De_gf = ComputeDamb(Ce);
+		salt_electrolyte.UpdateOperator();
 		salt_electrolyte.Stepping(source_ely);
 		
-		Ce = salt_electrolyte.GetConcentration();	
-		De_gf = ComputeDamb(Ce);		
-		salt_electrolyte.UpdateOperator();
+
+// 		p1.Stepping(0.02e-6);
+// 		p1.UpdateOperator();  
 		
 
 		// Recompute Kpl's values from the NEW De_gf/Ce, same object:
@@ -212,26 +291,30 @@ int main(){
 		AtnVCalt.UpdateDmp();
 	
 		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
-
 		
-// 		solid_potential.Solve(source_phs, AtnV_0, BvP);
-// 		liquid_potential.Solve(source_phl, AtnV, BvE);		
+// 		Kappa = ComputeKaps(Cp_mConc, is_in_region2);
+		solid_potential.UpdateOperator();
+
+
+		solid_potential.Solve(source_phs, AtnV_0, BvP);
+		liquid_potential.Solve(source_phl, AtnV, BvE);		
 				     
 //             << std::endl;
     }
+//     p1.SaveConc();
 // 	mfem::GridFunction C(&fespace);
 //     C = salt_electrolyte.GetConcentration(); 
 //     C.Print();
     salt_electrolyte.SaveConc("elyConc.gf");
-    double MnConc = salt_electrolyte.GetMeanConcentration();
-    std::cout << "MC = " << MnConc << std::endl;
+//     double MnConc = salt_electrolyte.GetMeanConcentration();
+//     std::cout << "MC = " << MnConc << std::endl;
  
- 
-	mfem::GridFunction Phi(&fespace);    
+ 	
+// 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();
-//     solid_potential.SavePote("solid_phi.gf");
+    solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
-//     liquid_potential.SavePote("liquid_phi.gf");    
+    liquid_potential.SavePote("liquid_phi.gf");    
     
 // 	particle_1.SaveConc();
     

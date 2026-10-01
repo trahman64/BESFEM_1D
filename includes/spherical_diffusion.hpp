@@ -6,41 +6,32 @@
 
 class SphericalDiffusion {
 public:
-    // radius         : particle radius R
-    // n_elements     : number of elements along the radial mesh [0, R]
-    // diffusion_coef : D (assumed spatially constant here)
-    // x_idx          : index/ID of this particle within the host domain
-    // dt             : fixed timestep used for all Stepping() calls
-    // fe_order       : polynomial order of the FE space (default linear)
-    // C0             : initial (uniform) concentration
-    SphericalDiffusion(double radius,
+    SphericalDiffusion(int x_idx,
+                        double radius,
                         int n_elements,
-                        double diffusion_coef,
-                        int x_idx,
-                        double dt,
-                        int fe_order = 1,
-                        double C0 = 0.0);
+                        int fe_order,
+                        double C0,
+                        double dt);
 
     ~SphericalDiffusion();
 
-    // Advance one timestep with a prescribed surface flux
-    // (D * dC/dr at r = R; positive = flux INTO the sphere)
     void Stepping(double surface_flux);
+    void UpdateOperator();   // call after Stepping() updates C, to refresh D_li-dependent K/Tmat
 
     mfem::GridFunction& GetConcentration();
-    double GetMeanConcentration();        // volume-averaged C (r^2-weighted)
-    double GetConcentrationAt(double x);  // value at a specific radial location x in [0, R]
-    int    GetParticleID() const;         // FIX: was declared as returning GridFunction&
+    double GetMeanConcentration();
+    double GetConcentrationAt(double x);
+    int GetParticleID() const;
 
     void SaveConc(const std::string &prefix = "sphere");
     void SaveMesh(const std::string &prefix = "sphere");
 
 private:
-    double R;      // particle radius
-    double D;       // diffusion coefficient
-    int order;      // FE order
-    int x_idx;       // index/ID of this particle within the host domain
-    double dt;       // fixed timestep, set at construction
+    double R;
+    double D;
+    int order;
+    int x_idx;
+    double dt;
 
     mfem::Mesh *mesh;
     mfem::FiniteElementCollection *fec;
@@ -49,19 +40,25 @@ private:
     mfem::GridFunction C;
     mfem::Vector C_prev;
 
-    mfem::BilinearForm *M, *K;
+    mfem::GridFunction D_li;
+    mfem::GridFunction r;                                 // now a member -- referenced by r2_coeff
+    mfem::GridFunctionCoefficient *r2_coeff = nullptr;     // now a member
+    mfem::GridFunctionCoefficient *D_li_coeff = nullptr;   // now a member (was "DC")
+    mfem::ProductCoefficient *D_r2 = nullptr;              // now a member
+
+    mfem::Array<int> outer_bdr_marker;
+
+    mfem::BilinearForm *M = nullptr;
+    mfem::BilinearForm *K = nullptr;
     mfem::SparseMatrix *M_mat, *K_mat;
-
-    mfem::Array<int> outer_bdr_marker;  // marks r = R boundary attribute
-
-    // Cached forward-Euler operator/solver (built once, during construction)
     mfem::SparseMatrix *Tmat = nullptr;
-    mfem::GSSmoother   *prec = nullptr;
-    mfem::CGSolver      solver;
+
+    mfem::GSSmoother *prec = nullptr;
+    mfem::CGSolver solver;
 
     void BuildMesh(int n_elements);
     void BuildOperators();
-    void Initialize();   // builds Tmat + solver, using this->dt -- called once, in the constructor
+//     void Initialize();
 };
 
 #endif
