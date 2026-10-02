@@ -19,22 +19,26 @@ public:
     mfem::GridFunction& GetSurfaceConcentration();
     mfem::GridFunction& GetPartiMeanConcentration();
     mfem::GridFunction& GetParticleVolume();
+    mfem::GridFunction& GetParticleSurfArea();
     mfem::GridFunction& GetParticleTotalLi();
 
     double GetTotalVolume();
+    double GetTotalSurfArea();
     double GetTotalLi();
     double GetDoD();
+    double GetElectrodeLength();
+
     
     void SaveAllConc(const std::string &prefix = "particle");
     void SaveConcByID(int particle_id, const std::string &prefix = "particle");
 
 private:
+	std::vector<std::unique_ptr<SphericalDiffusion>> particles;
     mfem::FiniteElementSpace *fespace;
     mfem::Array<int> region2_dofs;
     mfem::GridFunction parti_radii;
-    std::vector<SphericalDiffusion> particles;
 
-    mfem::GridFunction Cp_surf, Cp_mConc, part_totLi, part_volume;
+    mfem::GridFunction Cp_surf, Cp_mConc, part_totLi, part_volume, part_surfArea;
 };
 
 #endif

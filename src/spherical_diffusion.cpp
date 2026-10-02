@@ -20,6 +20,7 @@ SphericalDiffusion::SphericalDiffusion(int x_idx_,
     C_prev.SetSize(fespace->GetTrueVSize());
     C.GetTrueDofs(C_prev);
     D_li.SetSpace(fespace); 
+    vol_lf.Update(fespace);
 
     BuildOperators();
 
@@ -29,6 +30,8 @@ SphericalDiffusion::SphericalDiffusion(int x_idx_,
     outer_bdr_marker = 0;
     outer_bdr_marker[1] = 1;   // attribute 2 -> index 1
 
+	partiVolume = R * R * R / 3.0;   // ∫_0^R r^2 dr
+	partiSurfArea = R * R; // "raw" r^2 at the surface, consistent with GetParticleVolume()'s un-4π convention
 }
 
 SphericalDiffusion::~SphericalDiffusion() {
@@ -80,7 +83,11 @@ void SphericalDiffusion::BuildOperators() {
     solver.SetMaxIter(500);
     solver.SetPrintLevel(0);
     
-    Tmat = Add(1.0, *M_mat, -dt, *K_mat);    
+    Tmat = Add(1.0, *M_mat, -dt, *K_mat);
+    
+	// in BuildOperators(), after r2_coeff is built:
+	vol_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(*r2_coeff));
+	vol_lf.Assemble();        
 }
 
 
@@ -118,32 +125,20 @@ void SphericalDiffusion::Stepping(double surface_flux) {
 }
 
 double SphericalDiffusion::GetMeanConcentration() {
-    mfem::FunctionCoefficient r2_coeff([](const mfem::Vector &x) {
-        return x(0) * x(0);
-    });
-
-    mfem::LinearForm vol_lf(fespace);
-    vol_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(r2_coeff));
-    vol_lf.Assemble();
-
     double integral_Cr2 = vol_lf(C);
-    double volume = R * R * R / 3.0;   // ∫_0^R r^2 dr
-
-    return integral_Cr2 / volume;
+    return integral_Cr2 / partiVolume;
 }
 
 double SphericalDiffusion::GetParticleVolume() {
-    double volume = R * R * R / 3.0;   // ∫_0^R r^2 dr
-    return volume;
+    return partiVolume;
 }
 
+double SphericalDiffusion::GetParticleSurfaceArea() {
+    return partiSurfArea;   
+}
+
+
 double SphericalDiffusion::GetParticleTotalLi() {
-    mfem::FunctionCoefficient r2_coeff([](const mfem::Vector &x) {
-        return x(0) * x(0);
-    });
-    mfem::LinearForm vol_lf(fespace);
-    vol_lf.AddDomainIntegrator(new mfem::DomainLFIntegrator(r2_coeff));
-    vol_lf.Assemble();
     double integral_Cr2 = vol_lf(C);
     return integral_Cr2;
 }   

@@ -7,7 +7,7 @@ class ButlerVolmer {
 public:
     ButlerVolmer(mfem::FiniteElementSpace *fespace,
                  mfem::Array<int> &region2_dofs,
-                 double alpha_a, double alpha_c,
+                 double aPv, double alpha_a, double alpha_c,
                  double Cst1, double F);
 
     mfem::GridFunction& Compute(mfem::GridFunction &Ce_gf,
@@ -23,8 +23,9 @@ public:
 private:
     mfem::FiniteElementSpace *fespace;
     mfem::Array<int> region2_dofs;
-    double alpha_a, alpha_c, Cst1, F;
+    double aPv, alpha_a, alpha_c, Cst1, F;
     mfem::GridFunction rxn;
+    mfem::LinearForm rxn_lf;
 };
 
 #endif

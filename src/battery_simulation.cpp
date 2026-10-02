@@ -7,6 +7,7 @@
 #include "../includes/potential_utils.hpp"
 #include "../includes/electrode.hpp"
 #include "../includes/butler_volmer.hpp"
+#include "../includes/cell_kinetics.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -14,14 +15,10 @@ const double T = 300.0;
 
 const double alpha_a = 0.5;
 const double alpha_c = 0.5;
-
-// const double i0 = 0.5e-3;   
-
-const double aPv = 2.409e3;    
 const double t_minus = 0.7619;
 
+const double aPv = 2.409e3;    
 const double rho = 0.0312; 
-
 
 // volume fraction of liquid 
 const double eps_l_eld = 0.301;
@@ -37,16 +34,27 @@ const double dt = 1.0e-2;
 double kappa_s = 0.075;
 // volume fraction of solid 
 const double eps_s_eld = 0.699;
-const double eps_s_sep = 1.0e0;
+const double eps_s_sep = 1.0e-3;
 // tortuousity of liquid
 const double tau_s_eld = 1.324; 
 const double tau_s_sep = 1.0e-3;
-double BvP = 2.99;
-double BvE = -1.0;
+double BvP =  3.0; 
+double BvE = -1.081745;
+double dCV = 0.0;
 
 
 double rad = 4.0e-4;
 double Cp0 = 0.3;
+double X_e = 0.3;
+double X_f = 0.95;
+double C_rate = 0.5;
+double tm = 0.0;
+int num_steps = (3600.0*2/dt); // 10; //  
+double CV_sr = 1e-3;
+
+double tols = 1e-12;
+double toll = 1e-12;
+int internal_maxiter = 200;
 
 
 int main(){
@@ -143,8 +151,8 @@ int main(){
 	Electrode NMC_electrode(&fespace, region2_dofs, parti_radii, 40, 1, Cp0, dt);
  	mfem::GridFunction Cp_surf(&fespace);
  	mfem::GridFunction Cp_mConc(&fespace);
-//  	Cp_surf = 0.0;
-//  	Cp_mConc = 0.0; 
+ 	Cp_surf = 0.0;
+ 	Cp_mConc = 0.0; 
  	
 	Cp_surf = NMC_electrode.GetSurfaceConcentration();
 	Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
@@ -152,15 +160,15 @@ int main(){
  	double Vol = NMC_electrode.GetTotalVolume();
  	double totX = NMC_electrode.GetTotalLi();
 	double Xfr = NMC_electrode.GetDoD();
- 	std::cout << Vol << " " << totX << " " << Xfr << std::endl;
+ 	std::cout << "initial:" << Vol << " " << totX << " " << Xfr << std::endl;
  	
 
 // 	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
 
 
+
  
-//     std::cout << "Creating potential" << std::endl;
-// 
+    std::cout << "Creating potentials" << std::endl; 
        
 	// ============================================
 	//   _____  _     _    _____ 
@@ -188,6 +196,8 @@ int main(){
 	mfem::Vector AtnV_0(fespace.GetTrueVSize());
 	AtnV_0 = 0.0e0;	
 
+	mfem::GridFunction phs_old_gf(&fespace);
+	mfem::GridFunction phs_tmp_gf(&fespace);	
 
 	// ============================================	
 	//   _____  _     _   _      
@@ -225,7 +235,11 @@ int main(){
 	AtnVCalculator AtnVCalt(&fespace, Dmp);
 	mfem::Vector &AtnV = AtnVCalt.Compute(Ce);   // reference, no unnecessary copy
 		
-
+	mfem::GridFunction phl_old_gf(&fespace);
+	mfem::GridFunction phl_tmp_gf(&fespace);	
+	
+    std::cout << "Creating reaction" << std::endl;
+    
 	//  =============================================================  
 	//   ____        _ _         __      __   _                     
 	//  |  _ \      | | |        \ \    / /  | |                    
@@ -235,58 +249,73 @@ int main(){
 	//  |____/ \__,_|_|\__\___|_|    \/ \___/|_|_| |_| |_|\___|_|   
 	//  =============================================================                                                            
 
-	mfem::GridFunction OCV_gf(&fespace);
-	mfem::GridFunction i0_gf(&fespace);	
-	mfem::GridFunction phs_gf(&fespace);
-	mfem::GridFunction phl_gf(&fespace);
-	OCV_gf = 0.0;
-	i0_gf = 0.0;
-	phs_gf = 0.0;
-	phl_gf = 0.0;
- 
-	i0_gf = Compute_i0(Cp_surf, is_in_region2);
-	OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
-	phs_gf = solid_potential.GetPotential();
-	phl_gf = liquid_potential.GetPotential();	 
+// 	mfem::GridFunction OCV_gf(&fespace);
+// 	mfem::GridFunction i0_gf(&fespace);	
+// 	mfem::GridFunction phs_gf(&fespace);
+// 	mfem::GridFunction phl_gf(&fespace);
+// 	OCV_gf = 0.0;
+// 	i0_gf = 0.0;
+// 	phs_gf = 0.0;
+// 	phl_gf = 0.0;
+//  
+// 	i0_gf = Compute_i0(Cp_surf, is_in_region2);
+// 	OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
+// 	phs_gf = solid_potential.GetPotential();
+// 	phl_gf = liquid_potential.GetPotential();	 
 	
-// 	i0_gf.Print();
-	
-	ButlerVolmer cellRxn(&fespace, region2_dofs, alpha_a, alpha_c, Cst1, F);                                              
-	rxn = cellRxn.Compute(Ce, Cp_surf, i0_gf, OCV_gf, phs_gf, phl_gf);
-	
-	mfem::GridFunction source_ely(&fespace);
-	source_ely = rxn;
-	source_ely *= (aPv*t_minus);
-	source_ely.Neg();
-
-	
- 	mfem::GridFunction source_eld(&fespace);
- 	source_eld = rxn;
-	source_eld /= rho;		
-	source_eld.Print();
+// 	ButlerVolmer cellRxn(&fespace, region2_dofs, aPv, alpha_a, alpha_c, Cst1, F);                                              
+// 	rxn = cellRxn.Compute(Ce, Cp_surf, i0_gf, OCV_gf, phs_gf, phl_gf);
+		
+	CellKinetics EC_Rxn(&fespace, region2_dofs, is_in_region2, 
+		solid_potential, liquid_potential, aPv, alpha_a, alpha_c,
+		Cst1, F);
 
 	mfem::GridFunction source_phs(&fespace);
 	source_phs = rxn;
-	source_phs *= (aPv*F);
+	source_phs *= F;
 	
 	mfem::GridFunction source_phl(&fespace);
 	source_phl = rxn;
-	source_phl *= aPv;
 	source_phl.Neg();
 	
-	double totCrnt = cellRxn.GetTotalRxnCurrent();
-	std::cout << totCrnt << "---" << std::endl;
+	double dphs_2n = 0.0;
+	double dphl_2n = 0.0;
+
+
+	mfem::GridFunction source_ely(&fespace);
+// 	source_ely = rxn;
+// 	source_ely *= t_minus;
+// 	source_ely.Neg();
+	
+ 	mfem::GridFunction source_eld(&fespace);
+//  	source_eld = rxn;
+// 	source_eld /= (aPv * rho * eps_s_eld);		
+	
+	
+	double eld_length = NMC_electrode.GetElectrodeLength();
+	double cap_gl = rho * (X_f-X_e) * eld_length * eps_s_eld;
+	double pVA_scale =  (NMC_electrode.GetTotalVolume() / 
+		NMC_electrode.GetTotalSurfArea())* aPv; // / eps_s_eld;
+		
+	double I_trgt =  cap_gl/(3600.0/C_rate) * pVA_scale;
+	
+// 	double totCrnt = cellRxn.GetTotalRxnCurrent();
+	double totCrnt = EC_Rxn.GetTotalRxnCurrent();
+	std::cout << BvP << " : " << totCrnt << " ---> " << I_trgt << std::endl;
+// 	std::cout << NMC_electrode.GetTotalVolume() / 
+// 		NMC_electrode.GetTotalSurfArea()  << std::endl;
 	
 
     std::cout << "Starting loop" << std::endl;
 
-    int num_steps = 10000;
-//     double rxn = 0.02e-6;
-    double frx_p = 0.0;
+  
 
-    for (int iter = 0; iter <num_steps; iter++){
-    	if (iter % 20 == 0 ){
-			std::cout << "Step " << iter << ": diffusion" << std::endl;
+    for (int iter = 0; iter <= num_steps; iter++){
+    	if (iter % 1000 == 0 ){
+			std::cout << "Step " << iter << ": diffusion" << "  " 
+			<< NMC_electrode.GetDoD() << "  " << tm << " || " <<
+			(NMC_electrode.GetDoD()-0.3)/(X_f-X_e) << "  " 
+			<< tm/(3600.0/C_rate) << std::endl;
     	}
 
 
@@ -294,18 +323,19 @@ int main(){
 // 		p_test.Stepping(source_eld(60));
 // 		std::cout << source_eld(60) << "xxx" << std::endl;
 
-
+// 		source_ely = rxn;
+// 		source_ely *= t_minus;
+// 		source_ely.Neg();
 // 		Ce = salt_electrolyte.GetConcentration();	
 // 		De_gf = ComputeDamb(Ce);
 // 		salt_electrolyte.UpdateOperator();
 // 		salt_electrolyte.Stepping(source_ely);
 
+		source_eld = rxn;
+		source_eld /= (aPv * rho * eps_s_eld);	
 		NMC_electrode.UpdateOperators();		
 		NMC_electrode.Stepping(source_eld);
-		
-
-// 		
-// 		Cp_surf = NMC_electrode.GetSurfaceConcentration();
+		Cp_surf = NMC_electrode.GetSurfaceConcentration();
 
 // 		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
 // 			Cp_surf(60) << std::endl;		
@@ -329,22 +359,50 @@ int main(){
 // 		solid_potential.UpdateOperator();
 // 		liquid_potential.UpdateOperator();		
 
-
-// 		i0_gf = Compute_i0(Cp_surf, is_in_region2);
-// 		OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
-// 		phs_gf = solid_potential.GetPotential();
-// 		phl_gf = liquid_potential.GetPotential();
+	
+// 		dphs_2n = 1.0;
+// 		dphl_2n = 1.0;
+// 		for (int internal = 0; internal < internal_maxiter; internal++) {
+// 			phs_old_gf = EC_Rxn.GetPhs();
+// 			phl_old_gf = EC_Rxn.GetPhl();
 // 		
-// 		rxn = cellRxn.Compute(i0_gf, OCV_gf, phs_gf, phl_gf);	
-					
+// 			rxn = EC_Rxn.Compute(Ce, Cp_surf);
+// 		
+// 			source_phs = rxn; source_phs *= F;
+// 			source_phl = rxn; source_phl.Neg();
+// 		
+// 			solid_potential.Solve(source_phs, AtnV_0, BvP);
+// 			liquid_potential.Solve(source_phl, AtnV, BvE);   // only ONE call now
+// 		
+// 			phs_tmp_gf = solid_potential.GetPotential();
+// 			phs_tmp_gf -= phs_old_gf;
+// 			dphs_2n = phs_tmp_gf.Norml2();
+// 		
+// 			phl_tmp_gf = liquid_potential.GetPotential();   // no second Solve() before this
+// 			phl_tmp_gf -= phl_old_gf;
+// 			dphl_2n = phl_tmp_gf.Norml2();
+// 		
+// 			if (dphs_2n < tols && dphl_2n < toll) {
+// 				break;
+// 			}
+// 		}
+// 		
+// 
+// 		totCrnt = EC_Rxn.GetTotalRxnCurrent();
+// 		dCV = std::copysign(CV_sr, I_trgt - totCrnt);
+// 		dCV *= dt;
+// 		BvE += dCV;
 
-// 		solid_potential.Solve(source_phs, AtnV_0, BvP);
-// 		liquid_potential.Solve(source_phl, AtnV, BvE);	
 
+		if (iter % 1000 == 0 ){
+			std::cout << NMC_electrode.GetDoD() <<  " ^^^ " << 
+				BvP - BvE << " __ " << totCrnt << " --> " << 
+				I_trgt << std::endl; 
+		}
 
 			
-				     
-//             << std::endl;
+		tm += dt;  
+
     }
 
 // 	NMC_electrode.SaveAllConc();
@@ -369,10 +427,10 @@ int main(){
  	
 // 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();
-    solid_potential.SavePote("solid_phi.gf");
+//     solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
     liquid_potential.SavePote("liquid_phi.gf");    
-    cellRxn.Save();
+//     cellRxn.Save();
 //     rxn.Print();
 // 	particle_1.SaveConc();
     

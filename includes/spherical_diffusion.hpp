@@ -15,23 +15,24 @@ public:
 
     ~SphericalDiffusion();
 
-    void Stepping(double surface_flux);
     void UpdateOperator();   // call after Stepping() updates C, to refresh D_li-dependent K/Tmat
+    void Stepping(double surface_flux);
 
-    mfem::GridFunction& GetConcentration();
     double GetMeanConcentration();
+	double GetParticleVolume();
+	double GetParticleSurfaceArea();	
+	double GetParticleTotalLi();    
     double GetConcentrationAt(double x);
     int GetParticleID() const;
 
-	double GetParticleVolume();
-	double GetParticleTotalLi();
 
+
+    mfem::GridFunction& GetConcentration();
     void SaveConc(const std::string &prefix = "sphere");
     void SaveMesh(const std::string &prefix = "sphere");
 
 private:
     double R;
-    double D;
     int order;
     int x_idx;
     double dt;
@@ -59,8 +60,15 @@ private:
     mfem::GSSmoother *prec = nullptr;
     mfem::CGSolver solver;
 
+	mfem::LinearForm vol_lf;     
+	
     void BuildMesh(int n_elements);
     void BuildOperators();
+   
+	double partiVolume;
+    double partiSurfArea;
+    
+
 
 };
 

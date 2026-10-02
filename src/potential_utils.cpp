@@ -40,7 +40,7 @@ mfem::GridFunction Compute_i0(mfem::GridFunction &Cn, mfem::Array<int> is_in_reg
 }
 
 
-mfem::GridFunction Compute_pOCV(mfem::GridFunction &Cn, mfem::Array<int> is_in_region2)
+mfem::GridFunction Compute_OCV(mfem::GridFunction &Cn, mfem::Array<int> is_in_region2)
 {		
     mfem::GridFunction OCV_gf(Cn.FESpace());
     
