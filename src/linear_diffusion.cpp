@@ -128,7 +128,7 @@ double LinearDiffusion::GetMeanConcentration() {
 }
 
 void LinearDiffusion::SaveMesh() {
-    mesh->Save("diffusion_mesh.mesh");
+    mesh->Save("linear_mesh.mesh");
 }
 
 void LinearDiffusion::SaveConc(const std::string &filename) {

@@ -6,12 +6,14 @@
 #include "../includes/diffCoeff_utils.hpp"
 #include "../includes/potential_utils.hpp"
 #include "../includes/electrode.hpp"
+#include "../includes/butler_volmer.hpp"
 
 const double F = 96485.332;
 const double R = 8.314;
 const double T = 300.0;
 
-const double alpha = 0.5;
+const double alpha_a = 0.5;
+const double alpha_b = 0.5;
 
 // const double i0 = 0.5e-3;   
 
@@ -27,7 +29,7 @@ const double eps_l_sep = 1.0;
 // tortuousity of liquid
 const double tau_l_eld = 1.521; 
 const double tau_l_sep = 1.0;  
-const double C0 = 0.001;
+const double Ce0 = 0.001;
 const double De = 0.25e-5;
 
 const double dt = 1.0e-2; 
@@ -39,8 +41,8 @@ const double eps_s_sep = 1.0e0;
 // tortuousity of liquid
 const double tau_s_eld = 1.324; 
 const double tau_s_sep = 1.0e-3;
-double BvP = 0.0;
-double BvE = 0.0;
+double BvP = 3.09;
+double BvE = -1.0;
 
 
 double rad = 4.0e-4;
@@ -95,12 +97,15 @@ int main(){
 	rxn = 0.0;
 
 	for (int i = 0; i < n_elde_nodes; i++) {
-		rxn(region2_dofs[i]) = aPv*0.2e-11;
+		rxn(region2_dofs[i]) = 0.2e-6;
 	}
-// 	rxn.Print();
+
 // 	for (int i = 20; i <= 80; i++) {
-// 		rxn(i) = a*0.02e-6;
+// 		rxn(i) = 1e-6;
 // 	}
+// 	rxn.Print();
+
+
 
 	// ======================================================	
 	//   ______ _           _             _       _       
@@ -120,21 +125,16 @@ int main(){
 	
     std::cout << "Creating linear diffusion" << std::endl;
 
-	LinearDiffusion salt_electrolyte(&mesh, &fespace, nbc_bdr, C0, dt);
+	LinearDiffusion salt_electrolyte(&mesh, &fespace, nbc_bdr, Ce0, dt);
 	mfem::GridFunction Ce(&fespace);
 	Ce = salt_electrolyte.GetConcentration();	
 	mfem::GridFunction De_gf(&fespace);
 	De_gf = ComputeDamb(Ce);
-// 	De_gf.Print();
 	
 	salt_electrolyte.SetWeightVector(eps_l_sep, eps_l_eld, tau_l_sep, tau_l_eld);
 	salt_electrolyte.SetCoefficient(De_gf);
 	salt_electrolyte.BuildOperator();
 
-	mfem::GridFunction source_ely(&fespace);
-	source_ely = rxn;
-	source_ely *= -1.0;
-	source_ely *= t_minus;
 	
 	
 	// ======================================================		
@@ -161,17 +161,15 @@ int main(){
 	Cp_surf = NMC_electrode.GetSurfaceConcentration();
 	Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
 	
-// 	Cp_surf.Print();
-// 	Cp_mConc.Print();
-	
  	double Vol = NMC_electrode.GetTotalVolume();
  	double totX = NMC_electrode.GetTotalLi();
 	double Xfr = NMC_electrode.GetDoD();
  	std::cout << Vol << " " << totX << " " << Xfr << std::endl;
  	
- 	mfem::GridFunction source_eld(&fespace);
- 	source_eld = rxn;
-	source_eld /= rho;
+
+	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
+
+
  
 //     std::cout << "Creating potential" << std::endl;
 // 
@@ -194,17 +192,14 @@ int main(){
     Kappa = ComputeKaps(Cp_mConc, is_in_region2);
 //     Kappa = kappa_s;
 
-	StatPotential solid_potential(&fespace, ess_bdr_s);
+	StatPotential solid_potential(&fespace, ess_bdr_s, BvP);
 	solid_potential.SetWeightVector(eps_s_sep, eps_s_eld, tau_s_sep, tau_s_eld);   // sets region_weight
 	solid_potential.SetCoefficient(Kappa);                                   // needs region_weight -- must come after SetWeightVector
 	solid_potential.BuildOperator();                                         // needs weight_eff_kappa -- must come after SetCoefficient
 	
 	mfem::Vector AtnV_0(fespace.GetTrueVSize());
-	AtnV_0 = 0.0e0;
-	    
-	mfem::GridFunction source_phs(&fespace);
-	source_phs = rxn;
-	source_phs *= F;
+	AtnV_0 = 0.0e0;	
+
 
 	// ============================================	
 	//   _____  _     _   _      
@@ -234,25 +229,76 @@ int main(){
 	Kpl *= scaleConst;
 	Kpl *= Ce;
 	
-	StatPotential liquid_potential(&fespace, ess_bdr_l);
+	StatPotential liquid_potential(&fespace, ess_bdr_l, BvE);
 	liquid_potential.SetWeightVector(eps_l_sep, eps_l_eld, tau_l_sep, tau_l_eld);
 	liquid_potential.SetCoefficient(Kpl);
 	liquid_potential.BuildOperator();
 	
 	AtnVCalculator AtnVCalt(&fespace, Dmp);
 	mfem::Vector &AtnV = AtnVCalt.Compute(Ce);   // reference, no unnecessary copy
+		
+
+	//  =============================================================  
+	//   ____        _ _         __      __   _                     
+	//  |  _ \      | | |        \ \    / /  | |                    
+	//  | |_) |_   _| | |_ ___ _ _\ \  / /__ | |_ __ ___   ___ _ __ 
+	//  |  _ <| | | | | __/ _ \ '__\ \/ / _ \| | '_ ` _ \ / _ \ '__|
+	//  | |_) | |_| | | ||  __/ |   \  / (_) | | | | | | |  __/ |   
+	//  |____/ \__,_|_|\__\___|_|    \/ \___/|_|_| |_| |_|\___|_|   
+	//  =============================================================                                                            
+
+	mfem::GridFunction OCV_gf(&fespace);
+	mfem::GridFunction i0_gf(&fespace);	
+	mfem::GridFunction phs_gf(&fespace);
+	mfem::GridFunction phl_gf(&fespace);
+	OCV_gf = 0.0;
+	i0_gf = 0.0;
+	phs_gf = 0.0;
+	phl_gf = 0.0;
+ 
+	i0_gf = Compute_i0(Cp_surf, is_in_region2);
+	OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
+	phs_gf = solid_potential.GetPotential();
+	phl_gf = liquid_potential.GetPotential();	 
+	
+	i0_gf.Print();
+	
+	ButlerVolmer cellRxn(&fespace, region2_dofs, alpha_a, alpha_b, Cst1);                                              
+// 	rxn = cellRxn.Compute(i0_gf, OCV_gf, phs_gf, phl_gf);
+	
+	mfem::GridFunction source_ely(&fespace);
+	source_ely = rxn;
+	source_ely *= (aPv*t_minus);
+	source_ely.Neg();
+
+	
+ 	mfem::GridFunction source_eld(&fespace);
+ 	source_eld = rxn;
+	source_eld /= rho;		
+	source_eld.Print();
+
+	mfem::GridFunction source_phs(&fespace);
+	source_phs = rxn;
+	source_phs *= (aPv*F);
 	
 	mfem::GridFunction source_phl(&fespace);
 	source_phl = rxn;
+	source_phl *= aPv;
 	source_phl.Neg();
-
-
-// 	Vector
-	    
+	
+	double totCrnt = cellRxn.GetTotalRxnCurrent();
+	std::cout << totCrnt << "---" << std::endl;
+	
+	rxn.Print();
+	i0_gf.Print();
+	OCV_gf.Print();
+	phl_gf.Print();
+	phs_gf.Print();
+	
     std::cout << "Starting loop" << std::endl;
 
 //     double dt = 1e-2;
-    int num_steps = 1000;
+    int num_steps = 1;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
@@ -261,51 +307,67 @@ int main(){
 			std::cout << "Step " << iter << ": diffusion" << std::endl;
     	}
 
+
+// 		p_test.UpdateOperator();
+		p_test.Stepping(source_eld(60));
+// 		std::cout << source_eld(60) << "xxx" << std::endl;
+
+
 // 		Ce = salt_electrolyte.GetConcentration();	
 // 		De_gf = ComputeDamb(Ce);
 // 		salt_electrolyte.UpdateOperator();
 // 		salt_electrolyte.Stepping(source_ely);
 
-		NMC_electrode.UpdateOperators();		
+// 		NMC_electrode.UpdateOperators();		
 		NMC_electrode.Stepping(source_eld);
-		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
-		
-		
-// 		for (int p = 0; p < n_elde_nodes; p++) {
-// 			p_id = particles[p].GetParticleID();
-// 			particles[p].Stepping(rxn(p_id));
-// 			particles[p].UpdateOperator();
-// 		}
-// 		p1.Stepping(0.02e-6);
-// 		p1.UpdateOperator();  
 		
 
+// 		
+		Cp_surf = NMC_electrode.GetSurfaceConcentration();
+
+		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
+			Cp_surf(60) << std::endl;		
+		
+// 		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
+				
 		// Recompute Kpl's values from the NEW De_gf/Ce, same object:
-		Kpl = De_gf;
-		Kpl *= scaleConst;
-		Kpl *= Ce;
-		liquid_potential.UpdateOperator();   // now correctly reflects the new Kpl
+// 		Kpl = De_gf;
+// 		Kpl *= scaleConst;
+// 		Kpl *= Ce;
+// 		liquid_potential.UpdateOperator();   // now correctly reflects the new Kpl
 	
 		// Similarly, Dmp needs recomputing if it should track the new De_gf too:
-		Dmp = De_gf;
-		Dmp *= tc1;
-		AtnVCalt.UpdateDmp();
-	
-		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
-		
-		Kappa = ComputeKaps(Cp_mConc, is_in_region2);
-		solid_potential.UpdateOperator();
+// 		Dmp = De_gf;
+// 		Dmp *= tc1;
+// 		AtnVCalt.UpdateDmp();
+// 	
+// 		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
+				
+// 		Kappa = ComputeKaps(Cp_mConc, is_in_region2);			
+// 		solid_potential.UpdateOperator();
+// 		liquid_potential.UpdateOperator();		
 
 
-		solid_potential.Solve(source_phs, AtnV_0, BvP);
-// 		liquid_potential.Solve(source_phl, AtnV, BvE);		
+// 		i0_gf = Compute_i0(Cp_surf, is_in_region2);
+// 		OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
+// 		phs_gf = solid_potential.GetPotential();
+// 		phl_gf = liquid_potential.GetPotential();
+// 		
+// 		rxn = cellRxn.Compute(i0_gf, OCV_gf, phs_gf, phl_gf);	
+					
+
+// 		solid_potential.Solve(source_phs, AtnV_0, BvP);
+// 		liquid_potential.Solve(source_phl, AtnV, BvE);	
+
+
+			
 				     
 //             << std::endl;
     }
 
 // 	NMC_electrode.SaveAllConc();
-	NMC_electrode.SaveConcByID(40);
-	std::cout << NMC_electrode.GetDoD() << std::endl;
+	NMC_electrode.SaveConcByID(60);
+// 	std::cout << NMC_electrode.GetDoD() << std::endl;
 	
 	
 
@@ -321,13 +383,15 @@ int main(){
 //  		<< "  " << particles[57].GetMeanConcentration() << std::endl;
 //  	particles[3].SaveConc();
 //  	particles[57].SaveConc();	 
+ 	p_test.SaveConc();
  	
 // 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();
     solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
-//     liquid_potential.SavePote("liquid_phi.gf");    
-    
+    liquid_potential.SavePote("liquid_phi.gf");    
+    cellRxn.Save();
+//     rxn.Print();
 // 	particle_1.SaveConc();
     
 

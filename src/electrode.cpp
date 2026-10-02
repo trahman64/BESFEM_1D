@@ -33,6 +33,7 @@ void Electrode::Stepping(mfem::GridFunction &flux_gf) {
         int p_id = particle.GetParticleID();
         particle.Stepping(flux_gf(p_id));
     }
+//     flux_gf.Print();
 }
 
 void Electrode::UpdateOperators() {

@@ -6,7 +6,8 @@
 class StatPotential {
 public:
     StatPotential(mfem::FiniteElementSpace *fespace,
-                  mfem::Array<int> &ess_bdr);
+                  mfem::Array<int> &ess_bdr,
+                  double BcV);
 
     ~StatPotential();
 
@@ -24,6 +25,7 @@ private:
     mfem::FiniteElementSpace *fespace;
 
     mfem::GridFunction phi;
+    double BcV;
     mfem::Vector X, B;
 
     mfem::Array<int> ess_bdr;

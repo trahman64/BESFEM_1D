@@ -3,11 +3,11 @@
 #include <iostream>
 
 StatPotential::StatPotential(mfem::FiniteElementSpace *fespace_,
-                              mfem::Array<int> &ess_bdr_)
-    : fespace(fespace_), ess_bdr(ess_bdr_),
+                              mfem::Array<int> &ess_bdr_, double BcV_)
+    : fespace(fespace_), ess_bdr(ess_bdr_), BcV(BcV_),
       phi(fespace_), X(fespace_->GetTrueVSize()), B(fespace_->GetTrueVSize())
 {
-    phi = 0.0;
+    phi = BcV;
     fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 }
 

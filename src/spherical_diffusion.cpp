@@ -146,7 +146,7 @@ double SphericalDiffusion::GetParticleTotalLi() {
     vol_lf.Assemble();
     double integral_Cr2 = vol_lf(C);
     return integral_Cr2;
-}   // <-- added missing closing brace
+}   
 
 double SphericalDiffusion::GetConcentrationAt(double x) {
     mfem::Array<int> elem_ids;
