@@ -13,7 +13,7 @@ const double R = 8.314;
 const double T = 300.0;
 
 const double alpha_a = 0.5;
-const double alpha_b = 0.5;
+const double alpha_c = 0.5;
 
 // const double i0 = 0.5e-3;   
 
@@ -41,24 +41,12 @@ const double eps_s_sep = 1.0e0;
 // tortuousity of liquid
 const double tau_s_eld = 1.324; 
 const double tau_s_sep = 1.0e-3;
-double BvP = 3.09;
+double BvP = 2.99;
 double BvE = -1.0;
 
 
 double rad = 4.0e-4;
 double Cp0 = 0.3;
-
-// double ocv(double x){
-//     return 1.095 * x * x - 8.234e-7 * std::exp(14.32 * x) + 4.692 * std::exp(-0.5389 * x);
-// }
-
-// double butlerVolmer(double phi_s, double phi_e, double x){
-//     double phi_ocv = ocv(x);
-//     double n = (phi_s - phi_e) - phi_ocv;
-//     double rxn = (i0/F) * (std::exp((-alpha*F/(R*T))*n) - std::exp(((1-alpha)*F/(R*T))*n));
-//     return rxn;
-// }
-
 
 
 int main(){
@@ -167,7 +155,7 @@ int main(){
  	std::cout << Vol << " " << totX << " " << Xfr << std::endl;
  	
 
-	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
+// 	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
 
 
  
@@ -261,10 +249,10 @@ int main(){
 	phs_gf = solid_potential.GetPotential();
 	phl_gf = liquid_potential.GetPotential();	 
 	
-	i0_gf.Print();
+// 	i0_gf.Print();
 	
-	ButlerVolmer cellRxn(&fespace, region2_dofs, alpha_a, alpha_b, Cst1);                                              
-// 	rxn = cellRxn.Compute(i0_gf, OCV_gf, phs_gf, phl_gf);
+	ButlerVolmer cellRxn(&fespace, region2_dofs, alpha_a, alpha_c, Cst1, F);                                              
+	rxn = cellRxn.Compute(Ce, Cp_surf, i0_gf, OCV_gf, phs_gf, phl_gf);
 	
 	mfem::GridFunction source_ely(&fespace);
 	source_ely = rxn;
@@ -289,16 +277,10 @@ int main(){
 	double totCrnt = cellRxn.GetTotalRxnCurrent();
 	std::cout << totCrnt << "---" << std::endl;
 	
-	rxn.Print();
-	i0_gf.Print();
-	OCV_gf.Print();
-	phl_gf.Print();
-	phs_gf.Print();
-	
+
     std::cout << "Starting loop" << std::endl;
 
-//     double dt = 1e-2;
-    int num_steps = 1;
+    int num_steps = 10000;
 //     double rxn = 0.02e-6;
     double frx_p = 0.0;
 
@@ -309,7 +291,7 @@ int main(){
 
 
 // 		p_test.UpdateOperator();
-		p_test.Stepping(source_eld(60));
+// 		p_test.Stepping(source_eld(60));
 // 		std::cout << source_eld(60) << "xxx" << std::endl;
 
 
@@ -318,15 +300,15 @@ int main(){
 // 		salt_electrolyte.UpdateOperator();
 // 		salt_electrolyte.Stepping(source_ely);
 
-// 		NMC_electrode.UpdateOperators();		
+		NMC_electrode.UpdateOperators();		
 		NMC_electrode.Stepping(source_eld);
 		
 
 // 		
-		Cp_surf = NMC_electrode.GetSurfaceConcentration();
+// 		Cp_surf = NMC_electrode.GetSurfaceConcentration();
 
-		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
-			Cp_surf(60) << std::endl;		
+// 		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
+// 			Cp_surf(60) << std::endl;		
 		
 // 		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
 				
@@ -383,7 +365,7 @@ int main(){
 //  		<< "  " << particles[57].GetMeanConcentration() << std::endl;
 //  	particles[3].SaveConc();
 //  	particles[57].SaveConc();	 
- 	p_test.SaveConc();
+//  	p_test.SaveConc();
  	
 // 	mfem::GridFunction Phi(&fespace);    
 //     Phi = solid_potential.GetPotential();

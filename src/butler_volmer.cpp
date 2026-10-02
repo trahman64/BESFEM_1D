@@ -5,27 +5,42 @@
 ButlerVolmer::ButlerVolmer(mfem::FiniteElementSpace *fespace_,
                             mfem::Array<int> &region2_dofs_,
                             double alpha_a_, double alpha_c_,
-                            double Cst1_)
+                            double Cst1_, double F_)
     : fespace(fespace_), region2_dofs(region2_dofs_),
-      alpha_a(alpha_a_), alpha_c(alpha_c_), Cst1(Cst1_),
+      alpha_a(alpha_a_), alpha_c(alpha_c_), Cst1(Cst1_), F(F_),
       rxn(fespace_)
 {
     rxn = 0.0;
 }
 
-mfem::GridFunction& ButlerVolmer::Compute(mfem::GridFunction &i0,
-                                           mfem::GridFunction &OCV,
-                                           mfem::GridFunction &phs,
-                                           mfem::GridFunction &phl)
+mfem::GridFunction& ButlerVolmer::Compute(mfem::GridFunction &Ce_gf,
+										  mfem::GridFunction &Cp_gf,
+										  mfem::GridFunction &i0,
+                                          mfem::GridFunction &OCV,
+                                          mfem::GridFunction &phs,
+                                          mfem::GridFunction &phl)
 {
     rxn = 0.0;
 
     for (int i = 0; i < region2_dofs.Size(); i++) {
         int p_id = region2_dofs[i];
-        double eta = phs(p_id) - phl(p_id) - OCV(p_id);
-        rxn(p_id) = i0(p_id) * (std::exp(-alpha_a * Cst1 * eta)
-                              - std::exp( alpha_c * Cst1 * eta));
-    	std::cout << rxn(p_id) << " " << p_id << std::endl; 
+
+        double eta = phs(p_id) - phl(p_id);
+        double Kfw = i0(p_id)/(F*0.001      ) * std::exp( alpha_c*Cst1*OCV(p_id));
+        double Kfb = i0(p_id)/(F*Cp_gf(p_id)) * std::exp(-alpha_a*Cst1*OCV(p_id));        
+        
+        rxn(p_id) = Kfw*Ce_gf(p_id) * std::exp(-alpha_a*Cst1*eta) -
+                    Kfb*Cp_gf(p_id) * std::exp( alpha_c*Cst1*eta) ;
+        
+//     	std::cout << rxn(p_id) << " " << p_id <<  " -- " << eta << " " <<
+//     		Kfw << " " << Kfb << " " << Ce_gf(p_id) << " " << Cp_gf(p_id) << 
+//     		" " << i0(p_id) << " -- " << OCV(p_id) << " exp " << std::exp(-alpha_a*Cst1*eta)  << " " <<
+//     		                  std::exp( alpha_c*Cst1*eta)  << " " << 
+//     		   Kfw*Ce_gf(p_id) * std::exp(-alpha_a*Cst1*eta) << " " 
+//     		<< Kfb*Cp_gf(p_id) * std::exp( alpha_c*Cst1*eta)  << std::endl; 
+    		
+//     		std::cout << std::setprecision(15) << "alpha_c=" << alpha_c << " Cst1=" << Cst1 << " eta=" << eta << std::endl;
+    		
     }
     return rxn;
 }
