@@ -8,6 +8,10 @@
 #include "../includes/electrode.hpp"
 #include "../includes/butler_volmer.hpp"
 #include "../includes/cell_kinetics.hpp"
+#include <fstream>
+#include <iomanip>
+
+
 
 const double F = 96485.332;
 const double R = 8.314;
@@ -38,9 +42,13 @@ const double eps_s_sep = 1.0e-3;
 // tortuousity of liquid
 const double tau_s_eld = 1.324; 
 const double tau_s_sep = 1.0e-3;
-double BvP =  3.0; 
-double BvE = -1.081745;
+// double BvP =  3.0; 
+// double BvE = -1.081745;
+double BvP =  3.081745; 
+double BvE = -1.0;
+
 double dCV = 0.0;
+double cut_off = -0.01;
 
 
 double rad = 4.0e-4;
@@ -55,6 +63,7 @@ double CV_sr = 1e-3;
 double tols = 1e-12;
 double toll = 1e-12;
 int internal_maxiter = 200;
+
 
 
 int main(){
@@ -101,7 +110,8 @@ int main(){
 // 	}
 // 	rxn.Print();
 
-
+	std::ofstream outfile("DoD_output.csv");
+	outfile << "time,DoD,totCrnt,CellVoltage\n";
 
 	// ======================================================	
 	//   ______ _           _             _       _       
@@ -161,7 +171,9 @@ int main(){
  	double totX = NMC_electrode.GetTotalLi();
 	double Xfr = NMC_electrode.GetDoD();
  	std::cout << "initial:" << Vol << " " << totX << " " << Xfr << std::endl;
- 	
+
+	double next_output_DoD = Cp0;   // the next threshold to trigger on
+	const double DoD_step = 0.005; 	
 
 // 	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
 
@@ -249,49 +261,24 @@ int main(){
 	//  |____/ \__,_|_|\__\___|_|    \/ \___/|_|_| |_| |_|\___|_|   
 	//  =============================================================                                                            
 
-// 	mfem::GridFunction OCV_gf(&fespace);
-// 	mfem::GridFunction i0_gf(&fespace);	
-// 	mfem::GridFunction phs_gf(&fespace);
-// 	mfem::GridFunction phl_gf(&fespace);
-// 	OCV_gf = 0.0;
-// 	i0_gf = 0.0;
-// 	phs_gf = 0.0;
-// 	phl_gf = 0.0;
-//  
-// 	i0_gf = Compute_i0(Cp_surf, is_in_region2);
-// 	OCV_gf = Compute_pOCV(Cp_surf, is_in_region2);
-// 	phs_gf = solid_potential.GetPotential();
-// 	phl_gf = liquid_potential.GetPotential();	 
-	
-// 	ButlerVolmer cellRxn(&fespace, region2_dofs, aPv, alpha_a, alpha_c, Cst1, F);                                              
-// 	rxn = cellRxn.Compute(Ce, Cp_surf, i0_gf, OCV_gf, phs_gf, phl_gf);
 		
 	CellKinetics EC_Rxn(&fespace, region2_dofs, is_in_region2, 
 		solid_potential, liquid_potential, aPv, alpha_a, alpha_c,
 		Cst1, F);
+	rxn = EC_Rxn.Compute(Ce, Cp_surf);		
 
 	mfem::GridFunction source_phs(&fespace);
-	source_phs = rxn;
-	source_phs *= F;
-	
 	mfem::GridFunction source_phl(&fespace);
-	source_phl = rxn;
-	source_phl.Neg();
+
 	
 	double dphs_2n = 0.0;
 	double dphl_2n = 0.0;
 
 
 	mfem::GridFunction source_ely(&fespace);
-// 	source_ely = rxn;
-// 	source_ely *= t_minus;
-// 	source_ely.Neg();
-	
  	mfem::GridFunction source_eld(&fespace);
-//  	source_eld = rxn;
-// 	source_eld /= (aPv * rho * eps_s_eld);		
 	
-	
+		
 	double eld_length = NMC_electrode.GetElectrodeLength();
 	double cap_gl = rho * (X_f-X_e) * eld_length * eps_s_eld;
 	double pVA_scale =  (NMC_electrode.GetTotalVolume() / 
@@ -309,10 +296,10 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
   
-
-    for (int iter = 0; iter <= num_steps; iter++){
-    	if (iter % 1000 == 0 ){
-			std::cout << "Step " << iter << ": diffusion" << "  " 
+	num_steps = 28000;
+    for (int t_step = 0; t_step <= num_steps; t_step++){
+    	if (t_step % 1000 == 0 ){
+			std::cout << "Step " << t_step << ": diffusion" << "  " 
 			<< NMC_electrode.GetDoD() << "  " << tm << " || " <<
 			(NMC_electrode.GetDoD()-0.3)/(X_f-X_e) << "  " 
 			<< tm/(3600.0/C_rate) << std::endl;
@@ -323,87 +310,107 @@ int main(){
 // 		p_test.Stepping(source_eld(60));
 // 		std::cout << source_eld(60) << "xxx" << std::endl;
 
-// 		source_ely = rxn;
-// 		source_ely *= t_minus;
-// 		source_ely.Neg();
-// 		Ce = salt_electrolyte.GetConcentration();	
-// 		De_gf = ComputeDamb(Ce);
-// 		salt_electrolyte.UpdateOperator();
-// 		salt_electrolyte.Stepping(source_ely);
+		source_ely = rxn;
+		source_ely *= t_minus;
+		source_ely.Neg();
+		Ce = salt_electrolyte.GetConcentration();	
+		De_gf = ComputeDamb(Ce);
+		salt_electrolyte.UpdateOperator();
+		salt_electrolyte.Stepping(source_ely);
 
 		source_eld = rxn;
 		source_eld /= (aPv * rho * eps_s_eld);	
 		NMC_electrode.UpdateOperators();		
 		NMC_electrode.Stepping(source_eld);
 		Cp_surf = NMC_electrode.GetSurfaceConcentration();
+		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
 
 // 		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
 // 			Cp_surf(60) << std::endl;		
-		
-// 		Cp_mConc = NMC_electrode.GetPartiMeanConcentration();
+		Kappa = ComputeKaps(Cp_mConc, is_in_region2);			
+		solid_potential.UpdateOperator();		
+
 				
 		// Recompute Kpl's values from the NEW De_gf/Ce, same object:
-// 		Kpl = De_gf;
-// 		Kpl *= scaleConst;
-// 		Kpl *= Ce;
-// 		liquid_potential.UpdateOperator();   // now correctly reflects the new Kpl
+		Kpl = De_gf;
+		Kpl *= scaleConst;
+		Kpl *= Ce;
+		liquid_potential.UpdateOperator();   // now correctly reflects the new Kpl
 	
 		// Similarly, Dmp needs recomputing if it should track the new De_gf too:
-// 		Dmp = De_gf;
-// 		Dmp *= tc1;
-// 		AtnVCalt.UpdateDmp();
-// 	
-// 		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
-				
-// 		Kappa = ComputeKaps(Cp_mConc, is_in_region2);			
-// 		solid_potential.UpdateOperator();
-// 		liquid_potential.UpdateOperator();		
-
+		Dmp = De_gf;
+		Dmp *= tc1;
+		AtnVCalt.UpdateDmp();
 	
-// 		dphs_2n = 1.0;
-// 		dphl_2n = 1.0;
-// 		for (int internal = 0; internal < internal_maxiter; internal++) {
-// 			phs_old_gf = EC_Rxn.GetPhs();
-// 			phl_old_gf = EC_Rxn.GetPhl();
-// 		
-// 			rxn = EC_Rxn.Compute(Ce, Cp_surf);
-// 		
-// 			source_phs = rxn; source_phs *= F;
-// 			source_phl = rxn; source_phl.Neg();
-// 		
-// 			solid_potential.Solve(source_phs, AtnV_0, BvP);
-// 			liquid_potential.Solve(source_phl, AtnV, BvE);   // only ONE call now
-// 		
-// 			phs_tmp_gf = solid_potential.GetPotential();
-// 			phs_tmp_gf -= phs_old_gf;
-// 			dphs_2n = phs_tmp_gf.Norml2();
-// 		
-// 			phl_tmp_gf = liquid_potential.GetPotential();   // no second Solve() before this
-// 			phl_tmp_gf -= phl_old_gf;
-// 			dphl_2n = phl_tmp_gf.Norml2();
-// 		
-// 			if (dphs_2n < tols && dphl_2n < toll) {
-// 				break;
-// 			}
-// 		}
-// 		
-// 
-// 		totCrnt = EC_Rxn.GetTotalRxnCurrent();
-// 		dCV = std::copysign(CV_sr, I_trgt - totCrnt);
-// 		dCV *= dt;
-// 		BvE += dCV;
+		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);
+		liquid_potential.UpdateOperator();	
+				
 
+		// internal loop for rxn, phs, and phl
+		dphs_2n = 1.0;
+		dphl_2n = 1.0;
+		for (int internal = 0; internal < internal_maxiter; internal++) {
+			phs_old_gf = EC_Rxn.GetPhs();
+			phl_old_gf = EC_Rxn.GetPhl();
+		
+			rxn = EC_Rxn.Compute(Ce, Cp_surf);
+		
+			source_phs = rxn; source_phs *= F;
+			source_phl = rxn; source_phl.Neg();
+		
+			solid_potential.Solve(source_phs, AtnV_0, BvP);
+			liquid_potential.Solve(source_phl, AtnV, BvE);   // only ONE call now
+		
+			phs_tmp_gf = solid_potential.GetPotential();
+			phs_tmp_gf -= phs_old_gf;
+			dphs_2n = phs_tmp_gf.Norml2();
+		
+			phl_tmp_gf = liquid_potential.GetPotential();   // no second Solve() before this
+			phl_tmp_gf -= phl_old_gf;
+			dphl_2n = phl_tmp_gf.Norml2();
+		
+			if (dphs_2n < tols && dphl_2n < toll) {
+				break;
+			}
+		}
+		
 
-		if (iter % 1000 == 0 ){
+		totCrnt = EC_Rxn.GetTotalRxnCurrent();
+		dCV = std::copysign(CV_sr, I_trgt - totCrnt);
+		dCV *= dt;
+		BvE += dCV;
+
+		tm += dt; 
+		
+		if (NMC_electrode.GetDoD() >= next_output_DoD) {
+			// Save/output data here
+			std::cout << "DoD reached " << next_output_DoD << 
+				" at step " << t_step << std::endl;
+	
+// 			NMC_electrode.SaveAllConc("NMC_DoD_" + std::to_string(next_output_DoD));
+			// ... any other output you want (voltage, current, etc.) ...
+
+		   outfile << std::setprecision(10)
+					<< tm << ","
+					<< NMC_electrode.GetDoD() << ","
+					<< totCrnt << ","
+					<< BvP - BvE << std::endl;;
+	
+			next_output_DoD += DoD_step;   // advance to the NEXT threshold
+		}
+
+		if (BvP-BvE < cut_off) {break;}
+		
+		
+		if (t_step % 1000 == 0 ){
 			std::cout << NMC_electrode.GetDoD() <<  " ^^^ " << 
 				BvP - BvE << " __ " << totCrnt << " --> " << 
 				I_trgt << std::endl; 
 		}
 
-			
-		tm += dt;  
 
     }
+    outfile.close();
 
 // 	NMC_electrode.SaveAllConc();
 	NMC_electrode.SaveConcByID(60);
