@@ -296,7 +296,7 @@ int main(){
     std::cout << "Starting loop" << std::endl;
 
   
-	num_steps = 28000;
+// 	num_steps = 28000;
     for (int t_step = 0; t_step <= num_steps; t_step++){
     	if (t_step % 1000 == 0 ){
 			std::cout << "Step " << t_step << ": diffusion" << "  " 
@@ -387,10 +387,20 @@ int main(){
 			std::cout << "DoD reached " << next_output_DoD << 
 				" at step " << t_step << std::endl;
 	
-// 			NMC_electrode.SaveAllConc("NMC_DoD_" + std::to_string(next_output_DoD));
+			NMC_electrode.SaveAllConc("output/NMC_DoD_" + 
+				std::to_string(next_output_DoD) + "gf");
 			// ... any other output you want (voltage, current, etc.) ...
 
-		   outfile << std::setprecision(10)
+			salt_electrolyte.SaveConc("output/elyConc_" + 
+				std::to_string(next_output_DoD) + ".gf");
+			
+			liquid_potential.SavePote("output/liquid_phi_" + 
+				std::to_string(next_output_DoD) + ".gf");  	
+			
+			solid_potential.SavePote("output/solid_phi_" + 
+				std::to_string(next_output_DoD) + ".gf");
+			
+		    outfile << std::setprecision(10)
 					<< tm << ","
 					<< NMC_electrode.GetDoD() << ","
 					<< totCrnt << ","
@@ -413,7 +423,7 @@ int main(){
     outfile.close();
 
 // 	NMC_electrode.SaveAllConc();
-	NMC_electrode.SaveConcByID(60);
+// 	NMC_electrode.SaveConcByID(60);
 // 	std::cout << NMC_electrode.GetDoD() << std::endl;
 	
 	
@@ -436,7 +446,7 @@ int main(){
 //     Phi = solid_potential.GetPotential();
 //     solid_potential.SavePote("solid_phi.gf");
 //     Phi = solid_potential.GetPotential();
-    liquid_potential.SavePote("liquid_phi.gf");    
+//     liquid_potential.SavePote("liquid_phi.gf");    
 //     cellRxn.Save();
 //     rxn.Print();
 // 	particle_1.SaveConc();
