@@ -11,7 +11,7 @@ public:
               mfem::Array<int> &region2_dofs,
               mfem::GridFunction &parti_radii,
               int n_elements, int fe_order,
-              double Cp0, double dt);
+              mfem::GridFunction &parti_initC, double dt);
 
     void Stepping(mfem::GridFunction &flux_gf);
     void UpdateOperators();
@@ -37,6 +37,7 @@ private:
     mfem::FiniteElementSpace *fespace;
     mfem::Array<int> region2_dofs;
     mfem::GridFunction parti_radii;
+    mfem::GridFunction parti_initC;
 
     mfem::GridFunction Cp_surf, Cp_mConc, part_totLi, part_volume, part_surfArea;
 };

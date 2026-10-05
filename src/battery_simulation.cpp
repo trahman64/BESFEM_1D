@@ -19,10 +19,6 @@ const double T = 300.0;
 
 const double alpha_a = 0.5;
 const double alpha_c = 0.5;
-const double t_minus = 0.7619;
-
-const double aPv = 2.409e3;    
-const double rho = 0.0312; 
 
 // volume fraction of liquid 
 const double eps_l_eld = 0.301;
@@ -31,38 +27,45 @@ const double eps_l_sep = 1.0;
 const double tau_l_eld = 1.521; 
 const double tau_l_sep = 1.0;  
 const double Ce0 = 0.001;
-const double De = 0.25e-5;
+// const double De = 0.25e-5;
+const double t_minus = 0.7619;
 
-const double dt = 1.0e-2; 
 
 double kappa_s = 0.075;
 // volume fraction of solid 
 const double eps_s_eld = 0.699;
 const double eps_s_sep = 1.0e-3;
-// tortuousity of liquid
+// tortuousity of solid
 const double tau_s_eld = 1.324; 
 const double tau_s_sep = 1.0e-3;
+
+const double aPv = 2.409e3;    
+const double rho = 0.0312; 
+
+double rad = 4.0e-4;
+double Cp0 = 0.3;
+double X_e = 0.3;
+double X_f = 0.95;
+
 // double BvP =  3.0; 
 // double BvE = -1.081745;
 double BvP =  3.081745; 
 double BvE = -1.0;
 
 double dCV = 0.0;
-double cut_off = -0.01;
-
-
-double rad = 4.0e-4;
-double Cp0 = 0.3;
-double X_e = 0.3;
-double X_f = 0.95;
+double cut_off = 3.09;
 double C_rate = 0.5;
-double tm = 0.0;
-int num_steps = (3600.0*2/dt); // 10; //  
 double CV_sr = 1e-3;
-
 double tols = 1e-12;
 double toll = 1e-12;
 int internal_maxiter = 200;
+
+const double dt = 1.0e-2; 
+double tm = 0.0;
+int num_steps = (3600.0*2/dt); // 10; //  
+
+
+
 
 
 
@@ -101,14 +104,10 @@ int main(){
 	mfem::GridFunction rxn(&fespace);;
 	rxn = 0.0;
 
-	for (int i = 0; i < n_elde_nodes; i++) {
-		rxn(region2_dofs[i]) = 0.2e-6;
-	}
-
-// 	for (int i = 20; i <= 80; i++) {
-// 		rxn(i) = 1e-6;
+// 	for (int i = 0; i < n_elde_nodes; i++) {
+// 		rxn(region2_dofs[i]) = 0.2e-6;
 // 	}
-// 	rxn.Print();
+
 
 	std::ofstream outfile("DoD_output.csv");
 	outfile << "time,DoD,totCrnt,CellVoltage\n";
@@ -155,10 +154,14 @@ int main(){
                                          
     std::cout << "Creating particle diffusion" << std::endl;    // Reserving the size of the vector
 
+	mfem::GridFunction parti_initC(&fespace);
+	parti_initC = Cp0;
+	
 	mfem::GridFunction parti_radii(&fespace);
 	parti_radii = rad;
 	
-	Electrode NMC_electrode(&fespace, region2_dofs, parti_radii, 40, 1, Cp0, dt);
+	Electrode NMC_electrode(&fespace, region2_dofs, 
+		parti_radii, 40, 1, parti_initC, dt);
  	mfem::GridFunction Cp_surf(&fespace);
  	mfem::GridFunction Cp_mConc(&fespace);
  	Cp_surf = 0.0;

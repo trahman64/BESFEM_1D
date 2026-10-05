@@ -1,11 +1,12 @@
 #include "../includes/electrode.hpp"
 
 Electrode::Electrode(mfem::FiniteElementSpace *fespace_,
-                      mfem::Array<int> &region2_dofs_,
+                      mfem::Array<int> &region2_dofs_,                    
                       mfem::GridFunction &parti_radii_, 
                       int n_elements, int fe_order,
-                      double Cp0, double dt)
-    : fespace(fespace_), region2_dofs(region2_dofs_), parti_radii(parti_radii_),
+                      mfem::GridFunction &parti_initC_, double dt)
+    : fespace(fespace_), region2_dofs(region2_dofs_), 
+      parti_initC(parti_initC_), parti_radii(parti_radii_),
       Cp_surf(fespace_), Cp_mConc(fespace_), part_totLi(fespace_), 
       part_volume(fespace_), part_surfArea(fespace_)
 {
@@ -16,7 +17,8 @@ Electrode::Electrode(mfem::FiniteElementSpace *fespace_,
     for (int i = 0; i < n_elde_nodes; i++) {
         int p_id = region2_dofs[i];
         particles.push_back(std::make_unique<SphericalDiffusion>(p_id,
-            parti_radii(p_id), n_elements, fe_order, Cp0, dt));
+            parti_radii(p_id), n_elements, fe_order, 
+            parti_initC(p_id), dt));
     }
 
     Cp_surf = 0.0;
