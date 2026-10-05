@@ -1,0 +1,40 @@
+#!/bin/bash --login
+########## SBATCH Lines for Resource Request ##########
+ 
+#SBATCH --time=03:00:00             # limit of wall clock time - how long the job will run (same as -t)
+####SBATCH --nodes=1              # number of different nodes - could be an exact number or a range of nodes (same as -N)
+#SBATCH --ntasks=1               # number of tasks - how many tasks (nodes) that you require (same as -n)
+#SBATCH --cpus-per-task=1           # number of CPUs (or cores) per task (same as -c)
+#SBATCH --mem-per-cpu=3G            # memory required per allocated CPU (or core) - amount of memory (in bytes)
+#SBATCH --job-name PET_t1	        # you can give your job a name for easier identification (same as -J)
+#SBATCH --account=hcy 
+###SBATCH --constraint=NOAUTO:intel18|intel16
+###SBATCH --constraint=NOAUTO:intel18
+###SBATCH --constraint="[intel16|intel18]"
+###SBATCH --constraint=NOAUTO:amd20
+###SBATCH --constraint=NOAUTO:intel16 
+ 
+ 
+########## Command Lines to Run ##########
+ 
+##module purge
+ 
+### change to the directory where your code is located 
+cd  /mnt/home/hcy/SBMES_3D_2026/2026_0916_PET/BESFEM_1D/bin
+ 
+##ml GCCcore/12.3.0
+##ml hwloc/2.5.0
+ml MFEM/4.7-foss-2023a
+ 
+ulimit -s unlimited
+ 
+### call your executable (similar to mpirun) 
+
+##mpirun -n $SLURM_NTASKS valgrind ./P_ex_run 
+mpirun -n $SLURM_NTASKS ./solve1d
+
+### write job information to output file 
+scontrol show job $SLURM_JOB_ID     
+js -j $SLURM_JOB_ID                 ### write resource usage to SLURM output file (powertools command).
+
+

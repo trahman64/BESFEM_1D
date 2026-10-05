@@ -27,11 +27,10 @@ const double eps_l_sep = 1.0;
 const double tau_l_eld = 1.521; 
 const double tau_l_sep = 1.0;  
 const double Ce0 = 0.001;
-// const double De = 0.25e-5;
+// const double De0 = 0.25e-5;
 const double t_minus = 0.7619;
 
 
-double kappa_s = 0.075;
 // volume fraction of solid 
 const double eps_s_eld = 0.699;
 const double eps_s_sep = 1.0e-3;
@@ -68,8 +67,18 @@ int num_steps = (3600.0*2/dt); // 10; //
 
 
 
-
 int main(){
+
+	// ==================================
+	//                       _     
+	//                      | |    
+	//   _ __ ___   ___  ___| |__  
+	//  | '_ ` _ \ / _ \/ __| '_ \ 
+	//  | | | | | |  __/\__ \ | | |
+	//  |_| |_| |_|\___||___/_| |_|
+	// ==================================
+                            
+                                   
     mfem::Mesh mesh("../inputs/Mesh_80_1D02.mesh");
     int dim = mesh.Dimension();
     int order = 1;
@@ -134,8 +143,8 @@ int main(){
 	mfem::GridFunction Ce(&fespace);
 	Ce = salt_electrolyte.GetConcentration();	
 	mfem::GridFunction De_gf(&fespace);
-	De_gf = ComputeDamb(Ce);
-	
+	De_gf = Compute_Damb(Ce);
+
 	salt_electrolyte.SetWeightVector(eps_l_sep, eps_l_eld, tau_l_sep, tau_l_eld);
 	salt_electrolyte.SetCoefficient(De_gf);
 	salt_electrolyte.BuildOperator();
@@ -180,8 +189,6 @@ int main(){
 
 // 	SphericalDiffusion p_test(60, rad, 40, 1, Cp0, dt);
 
-
-
  
     std::cout << "Creating potentials" << std::endl; 
        
@@ -200,8 +207,7 @@ int main(){
     ess_bdr_s[1] = 1;
     
     mfem::GridFunction Kappa(&fespace);
-    Kappa = ComputeKaps(Cp_mConc, is_in_region2);
-//     Kappa = kappa_s;
+	Kappa = Compute_Kaps(Cp_mConc, is_in_region2);    
 
 	StatPotential solid_potential(&fespace, ess_bdr_s, BvP);
 	solid_potential.SetWeightVector(eps_s_sep, eps_s_eld, tau_s_sep, tau_s_eld);   // sets region_weight
@@ -228,19 +234,14 @@ int main(){
 	ess_bdr_l[0] = 1;
 	
 	double Cst1 = F / R / T;
-	double tc1 = (2 * t_minus - 1.0) / (2 * t_minus * (1.0 - t_minus));
-	double tc2 = 1.0 / (2 * t_minus * (1.0 - t_minus)) * Cst1;
-	double scaleConst = tc2 / tc1 * Cst1;
+	double tc1, tc2, scaleConst;
+	ComputeConstantce(t_minus, Cst1, tc1, tc2, scaleConst);	
 	
 	mfem::GridFunction Dmp(&fespace);
 	mfem::GridFunction Kpl(&fespace);
 	
-	Dmp = De_gf;
-	Dmp *= tc1;
-	
-	Kpl = De_gf;
-	Kpl *= scaleConst;
-	Kpl *= Ce;
+	Dmp = Compute_Dmp(De_gf, tc1);
+	Kpl = Compute_Kpl(De_gf, Ce, scaleConst);
 	
 	StatPotential liquid_potential(&fespace, ess_bdr_l, BvE);
 	liquid_potential.SetWeightVector(eps_l_sep, eps_l_eld, tau_l_sep, tau_l_eld);
@@ -317,7 +318,7 @@ int main(){
 		source_ely *= t_minus;
 		source_ely.Neg();
 		Ce = salt_electrolyte.GetConcentration();	
-		De_gf = ComputeDamb(Ce);
+		De_gf = Compute_Damb(Ce);
 		salt_electrolyte.UpdateOperator();
 		salt_electrolyte.Stepping(source_ely);
 
@@ -330,19 +331,16 @@ int main(){
 
 // 		std::cout << p_test.GetConcentrationAt(rad) << " --->> " << 
 // 			Cp_surf(60) << std::endl;		
-		Kappa = ComputeKaps(Cp_mConc, is_in_region2);			
+		Kappa = Compute_Kaps(Cp_mConc, is_in_region2);			
 		solid_potential.UpdateOperator();		
 
 				
 		// Recompute Kpl's values from the NEW De_gf/Ce, same object:
-		Kpl = De_gf;
-		Kpl *= scaleConst;
-		Kpl *= Ce;
+		Kpl = Compute_Kpl(De_gf, Ce, scaleConst);
 		liquid_potential.UpdateOperator();   // now correctly reflects the new Kpl
 	
 		// Similarly, Dmp needs recomputing if it should track the new De_gf too:
-		Dmp = De_gf;
-		Dmp *= tc1;
+		Dmp = Compute_Dmp(De_gf, tc1);		
 		AtnVCalt.UpdateDmp();
 	
 		mfem::Vector &AtnV = AtnVCalt.Compute(Ce);

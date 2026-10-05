@@ -57,7 +57,7 @@ void SphericalDiffusion::BuildOperators() {
     r *= r;
     r2_coeff = new mfem::GridFunctionCoefficient(&r);
 
-    D_li = ComputeDLi(C);
+    D_li = Compute_DLi(C);
     D_li_coeff = new mfem::GridFunctionCoefficient(&D_li);
     D_r2 = new mfem::ProductCoefficient(*D_li_coeff, *r2_coeff);
 
@@ -92,7 +92,7 @@ void SphericalDiffusion::BuildOperators() {
 
 
 void SphericalDiffusion::UpdateOperator() {
-    D_li = ComputeDLi(C);   // D_li_coeff already points at this member -- sees new values automatically
+    D_li = Compute_DLi(C);   // D_li_coeff already points at this member -- sees new values automatically
 
     K->Update();
     K->Assemble();
