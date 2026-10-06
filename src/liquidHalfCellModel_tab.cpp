@@ -215,8 +215,10 @@ int main(){
     ess_bdr_s = 0;
     ess_bdr_s[1] = 1;
     
+    // 	Tabulated_data NMC_ConductivityTable(x_file, v_file);
+    
     mfem::GridFunction Kappa(&fespace);
-	Kappa = Compute_Kaps(Cp_mConc, is_in_region2);    
+	Kappa = Compute_Kaps(Cp_mConc, is_in_region2, NMC_ConductivityTable);    
 
 	StatPotential solid_potential(&fespace, ess_bdr_s, BvP);
 	solid_potential.SetWeightVector(eps_s_sep, eps_s_eld, tau_s_sep, tau_s_eld);   // sets region_weight
