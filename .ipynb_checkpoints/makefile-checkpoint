@@ -17,7 +17,8 @@ LIB_FLAGS     = $(MFEM_LIBS)
 
 # Source files
 SRC_FILES = src/battery_simulation.cpp src/linear_diffusion.cpp \
-	src/spherical_diffusion.cpp src/stat_potential.cpp src/diffCoeff_utils.cpp src/atnv_calculator.cpp
+	src/spherical_diffusion.cpp src/stat_potential.cpp src/diffCoeff_utils.cpp src/atnv_calculator.cpp \
+    src/reaction.cpp
     
 #     src/diffusion.cpp \
 #     src/radial_diffusion.cpp \
